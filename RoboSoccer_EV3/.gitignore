@@ -1,0 +1,13 @@
+// compiled files
+*.o
+
+// makefiles
+Makefile
+
+// cache
+autom4te.cache/requests
+
+// configuration files
+config.log
+config.status
+include/config.h
