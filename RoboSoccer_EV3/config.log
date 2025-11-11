@@ -37,6 +37,7 @@ PATH: /usr/games/
 PATH: /usr/local/games/
 PATH: /snap/bin/
 PATH: /snap/bin/
+PATH: /home/ubuntu/.config/Code/User/globalStorage/github.copilot-chat/debugCommand/
 
 
 ## ----------- ##
@@ -172,31 +173,60 @@ configure:4750: $? = 0
 configure:4760: result: yes
 configure:4770: checking for jpeg_CreateCompress in -ljpeg
 configure:4793: gcc -o conftest -g -O2   conftest.c -ljpeg  -lglut -lSDL -lGLU -lGL  >&5
-configure:4793: $? = 0
-configure:4803: result: yes
+/usr/bin/ld: cannot find -ljpeg: No such file or directory
+collect2: error: ld returned 1 exit status
+configure:4793: $? = 1
+configure: failed program was:
+| /* confdefs.h */
+| #define PACKAGE_NAME "Robo Soccer"
+| #define PACKAGE_TARNAME "robo-soccer"
+| #define PACKAGE_VERSION "1.0"
+| #define PACKAGE_STRING "Robo Soccer 1.0"
+| #define PACKAGE_BUGREPORT "wisalam@live.com"
+| #define PACKAGE_URL ""
+| #define PACKAGE "robo-soccer"
+| #define VERSION "1.0"
+| #define HAVE_LIBGL 1
+| #define HAVE_LIBGLU 1
+| #define HAVE_LIBSDL 1
+| #define HAVE_LIBGLUT 1
+| /* end confdefs.h.  */
+| 
+| /* Override any GCC internal prototype to avoid an error.
+|    Use char because int might match the return type of a GCC
+|    builtin and then its argument prototype would still apply.  */
+| char jpeg_CreateCompress ();
+| int
+| main (void)
+| {
+| return jpeg_CreateCompress ();
+|   ;
+|   return 0;
+| }
+configure:4803: result: no
 configure:4813: checking for baswap in -lbluetooth
-configure:4836: gcc -o conftest -g -O2   conftest.c -lbluetooth  -ljpeg -lglut -lSDL -lGLU -lGL  >&5
+configure:4836: gcc -o conftest -g -O2   conftest.c -lbluetooth  -lglut -lSDL -lGLU -lGL  >&5
 configure:4836: $? = 0
 configure:4846: result: yes
 configure:4856: checking for sqrt in -lm
-configure:4879: gcc -o conftest -g -O2   conftest.c -lm  -lbluetooth -ljpeg -lglut -lSDL -lGLU -lGL  >&5
-conftest.c:21:6: warning: conflicting types for built-in function 'sqrt'; expected 'double(double)' [-Wbuiltin-declaration-mismatch]
-   21 | char sqrt ();
+configure:4879: gcc -o conftest -g -O2   conftest.c -lm  -lbluetooth -lglut -lSDL -lGLU -lGL  >&5
+conftest.c:20:6: warning: conflicting types for built-in function 'sqrt'; expected 'double(double)' [-Wbuiltin-declaration-mismatch]
+   20 | char sqrt ();
       |      ^~~~
 conftest.c:1:1: note: 'sqrt' is declared in header '<math.h>'
     1 | /* confdefs.h */
 configure:4879: $? = 0
 configure:4889: result: yes
 configure:4899: checking for pthread_create in -lpthread
-configure:4922: gcc -o conftest -g -O2   conftest.c -lpthread  -lm -lbluetooth -ljpeg -lglut -lSDL -lGLU -lGL  >&5
+configure:4922: gcc -o conftest -g -O2   conftest.c -lpthread  -lm -lbluetooth -lglut -lSDL -lGLU -lGL  >&5
 configure:4922: $? = 0
 configure:4932: result: yes
 configure:4949: checking how to run the C preprocessor
 configure:4975: gcc -E  conftest.c
 configure:4975: $? = 0
 configure:4990: gcc -E  conftest.c
-conftest.c:19:10: fatal error: ac_nonexistent.h: No such file or directory
-   19 | #include <ac_nonexistent.h>
+conftest.c:18:10: fatal error: ac_nonexistent.h: No such file or directory
+   18 | #include <ac_nonexistent.h>
       |          ^~~~~~~~~~~~~~~~~~
 compilation terminated.
 configure:4990: $? = 1
@@ -214,7 +244,6 @@ configure: failed program was:
 | #define HAVE_LIBGLU 1
 | #define HAVE_LIBSDL 1
 | #define HAVE_LIBGLUT 1
-| #define HAVE_LIBJPEG 1
 | #define HAVE_LIBBLUETOOTH 1
 | #define HAVE_LIBM 1
 | #define HAVE_LIBPTHREAD 1
@@ -224,8 +253,8 @@ configure:5017: result: gcc -E
 configure:5031: gcc -E  conftest.c
 configure:5031: $? = 0
 configure:5046: gcc -E  conftest.c
-conftest.c:19:10: fatal error: ac_nonexistent.h: No such file or directory
-   19 | #include <ac_nonexistent.h>
+conftest.c:18:10: fatal error: ac_nonexistent.h: No such file or directory
+   18 | #include <ac_nonexistent.h>
       |          ^~~~~~~~~~~~~~~~~~
 compilation terminated.
 configure:5046: $? = 1
@@ -243,14 +272,13 @@ configure: failed program was:
 | #define HAVE_LIBGLU 1
 | #define HAVE_LIBSDL 1
 | #define HAVE_LIBGLUT 1
-| #define HAVE_LIBJPEG 1
 | #define HAVE_LIBBLUETOOTH 1
 | #define HAVE_LIBM 1
 | #define HAVE_LIBPTHREAD 1
 | /* end confdefs.h.  */
 | #include <ac_nonexistent.h>
 configure:5077: checking for X
-configure:5115: gcc -o conftest -g -O2   conftest.c -lX11 -lpthread -lm -lbluetooth -ljpeg -lglut -lSDL -lGLU -lGL  >&5
+configure:5115: gcc -o conftest -g -O2   conftest.c -lX11 -lpthread -lm -lbluetooth -lglut -lSDL -lGLU -lGL  >&5
 configure:5115: $? = 0
 configure:5302: result: libraries , headers 
 configure:5310: checking for stdio.h
@@ -342,8 +370,8 @@ configure:5460: gcc -c -g -O2  conftest.c >&5
 configure:5460: $? = 0
 configure:5460: gcc -c -g -O2  conftest.c >&5
 conftest.c: In function 'main':
-conftest.c:74:20: error: expected expression before ')' token
-   74 | if (sizeof ((off_t)))
+conftest.c:73:20: error: expected expression before ')' token
+   73 | if (sizeof ((off_t)))
       |                    ^
 configure:5460: $? = 1
 configure: failed program was:
@@ -360,7 +388,6 @@ configure: failed program was:
 | #define HAVE_LIBGLU 1
 | #define HAVE_LIBSDL 1
 | #define HAVE_LIBGLUT 1
-| #define HAVE_LIBJPEG 1
 | #define HAVE_LIBBLUETOOTH 1
 | #define HAVE_LIBM 1
 | #define HAVE_LIBPTHREAD 1
@@ -431,8 +458,8 @@ configure:5470: gcc -c -g -O2  conftest.c >&5
 configure:5470: $? = 0
 configure:5470: gcc -c -g -O2  conftest.c >&5
 conftest.c: In function 'main':
-conftest.c:74:21: error: expected expression before ')' token
-   74 | if (sizeof ((size_t)))
+conftest.c:73:21: error: expected expression before ')' token
+   73 | if (sizeof ((size_t)))
       |                     ^
 configure:5470: $? = 1
 configure: failed program was:
@@ -449,7 +476,6 @@ configure: failed program was:
 | #define HAVE_LIBGLU 1
 | #define HAVE_LIBSDL 1
 | #define HAVE_LIBGLUT 1
-| #define HAVE_LIBJPEG 1
 | #define HAVE_LIBBLUETOOTH 1
 | #define HAVE_LIBM 1
 | #define HAVE_LIBPTHREAD 1
@@ -520,8 +546,8 @@ configure:5480: gcc -c -g -O2  conftest.c >&5
 configure:5480: $? = 0
 configure:5480: gcc -c -g -O2  conftest.c >&5
 conftest.c: In function 'main':
-conftest.c:74:22: error: expected expression before ')' token
-   74 | if (sizeof ((ssize_t)))
+conftest.c:73:22: error: expected expression before ')' token
+   73 | if (sizeof ((ssize_t)))
       |                      ^
 configure:5480: $? = 1
 configure: failed program was:
@@ -538,7 +564,6 @@ configure: failed program was:
 | #define HAVE_LIBGLU 1
 | #define HAVE_LIBSDL 1
 | #define HAVE_LIBGLUT 1
-| #define HAVE_LIBJPEG 1
 | #define HAVE_LIBBLUETOOTH 1
 | #define HAVE_LIBM 1
 | #define HAVE_LIBPTHREAD 1
@@ -625,94 +650,94 @@ configure:5559: result: x86_64-pc-linux-gnu
 configure:5579: checking host system type
 configure:5593: result: x86_64-pc-linux-gnu
 configure:5613: checking for GNU libc compatible malloc
-configure:5645: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -ljpeg -lglut -lSDL -lGLU -lGL  >&5
+configure:5645: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -lglut -lSDL -lGLU -lGL  >&5
 configure:5645: $? = 0
 configure:5645: ./conftest
 configure:5645: $? = 0
 configure:5656: result: yes
 configure:5683: checking for getpagesize
-configure:5683: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -ljpeg -lglut -lSDL -lGLU -lGL  >&5
+configure:5683: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -lglut -lSDL -lGLU -lGL  >&5
 configure:5683: $? = 0
 configure:5683: result: yes
 configure:5694: checking for working mmap
-configure:5846: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -ljpeg -lglut -lSDL -lGLU -lGL  >&5
+configure:5846: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -lglut -lSDL -lGLU -lGL  >&5
 configure:5846: $? = 0
 configure:5846: ./conftest
 configure:5846: $? = 0
 configure:5857: result: yes
 configure:5866: checking for GNU libc compatible realloc
-configure:5898: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -ljpeg -lglut -lSDL -lGLU -lGL  >&5
+configure:5898: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -lglut -lSDL -lGLU -lGL  >&5
 configure:5898: $? = 0
 configure:5898: ./conftest
 configure:5898: $? = 0
 configure:5909: result: yes
 configure:5931: checking for floor
-configure:5931: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -ljpeg -lglut -lSDL -lGLU -lGL  >&5
-conftest.c:63:6: warning: conflicting types for built-in function 'floor'; expected 'double(double)' [-Wbuiltin-declaration-mismatch]
-   63 | char floor ();
+configure:5931: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -lglut -lSDL -lGLU -lGL  >&5
+conftest.c:62:6: warning: conflicting types for built-in function 'floor'; expected 'double(double)' [-Wbuiltin-declaration-mismatch]
+   62 | char floor ();
       |      ^~~~~
-conftest.c:55:1: note: 'floor' is declared in header '<math.h>'
-   54 | #include <limits.h>
-   55 | #undef floor
+conftest.c:54:1: note: 'floor' is declared in header '<math.h>'
+   53 | #include <limits.h>
+   54 | #undef floor
 configure:5931: $? = 0
 configure:5931: result: yes
 configure:5937: checking for ftruncate
-configure:5937: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -ljpeg -lglut -lSDL -lGLU -lGL  >&5
+configure:5937: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -lglut -lSDL -lGLU -lGL  >&5
 configure:5937: $? = 0
 configure:5937: result: yes
 configure:5943: checking for memset
-configure:5943: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -ljpeg -lglut -lSDL -lGLU -lGL  >&5
-conftest.c:65:6: warning: conflicting types for built-in function 'memset'; expected 'void *(void *, int,  long unsigned int)' [-Wbuiltin-declaration-mismatch]
-   65 | char memset ();
+configure:5943: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -lglut -lSDL -lGLU -lGL  >&5
+conftest.c:64:6: warning: conflicting types for built-in function 'memset'; expected 'void *(void *, int,  long unsigned int)' [-Wbuiltin-declaration-mismatch]
+   64 | char memset ();
       |      ^~~~~~
-conftest.c:57:1: note: 'memset' is declared in header '<string.h>'
-   56 | #include <limits.h>
-   57 | #undef memset
+conftest.c:56:1: note: 'memset' is declared in header '<string.h>'
+   55 | #include <limits.h>
+   56 | #undef memset
 configure:5943: $? = 0
 configure:5943: result: yes
 configure:5949: checking for pow
-configure:5949: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -ljpeg -lglut -lSDL -lGLU -lGL  >&5
-conftest.c:66:6: warning: conflicting types for built-in function 'pow'; expected 'double(double,  double)' [-Wbuiltin-declaration-mismatch]
-   66 | char pow ();
+configure:5949: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -lglut -lSDL -lGLU -lGL  >&5
+conftest.c:65:6: warning: conflicting types for built-in function 'pow'; expected 'double(double,  double)' [-Wbuiltin-declaration-mismatch]
+   65 | char pow ();
       |      ^~~
-conftest.c:58:1: note: 'pow' is declared in header '<math.h>'
-   57 | #include <limits.h>
-   58 | #undef pow
+conftest.c:57:1: note: 'pow' is declared in header '<math.h>'
+   56 | #include <limits.h>
+   57 | #undef pow
 configure:5949: $? = 0
 configure:5949: result: yes
 configure:5955: checking for select
-configure:5955: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -ljpeg -lglut -lSDL -lGLU -lGL  >&5
+configure:5955: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -lglut -lSDL -lGLU -lGL  >&5
 configure:5955: $? = 0
 configure:5955: result: yes
 configure:5961: checking for socket
-configure:5961: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -ljpeg -lglut -lSDL -lGLU -lGL  >&5
+configure:5961: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -lglut -lSDL -lGLU -lGL  >&5
 configure:5961: $? = 0
 configure:5961: result: yes
 configure:5967: checking for sqrt
-configure:5967: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -ljpeg -lglut -lSDL -lGLU -lGL  >&5
-conftest.c:69:6: warning: conflicting types for built-in function 'sqrt'; expected 'double(double)' [-Wbuiltin-declaration-mismatch]
-   69 | char sqrt ();
+configure:5967: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -lglut -lSDL -lGLU -lGL  >&5
+conftest.c:68:6: warning: conflicting types for built-in function 'sqrt'; expected 'double(double)' [-Wbuiltin-declaration-mismatch]
+   68 | char sqrt ();
       |      ^~~~
-conftest.c:61:1: note: 'sqrt' is declared in header '<math.h>'
-   60 | #include <limits.h>
-   61 | #undef sqrt
+conftest.c:60:1: note: 'sqrt' is declared in header '<math.h>'
+   59 | #include <limits.h>
+   60 | #undef sqrt
 configure:5967: $? = 0
 configure:5967: result: yes
 configure:5973: checking for strdup
-configure:5973: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -ljpeg -lglut -lSDL -lGLU -lGL  >&5
-conftest.c:70:6: warning: conflicting types for built-in function 'strdup'; expected 'char *(const char *)' [-Wbuiltin-declaration-mismatch]
-   70 | char strdup ();
+configure:5973: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -lglut -lSDL -lGLU -lGL  >&5
+conftest.c:69:6: warning: conflicting types for built-in function 'strdup'; expected 'char *(const char *)' [-Wbuiltin-declaration-mismatch]
+   69 | char strdup ();
       |      ^~~~~~
 configure:5973: $? = 0
 configure:5973: result: yes
 configure:5979: checking for strerror
-configure:5979: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -ljpeg -lglut -lSDL -lGLU -lGL  >&5
+configure:5979: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -lglut -lSDL -lGLU -lGL  >&5
 configure:5979: $? = 0
 configure:5979: result: yes
 configure:5985: checking for strncasecmp
-configure:5985: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -ljpeg -lglut -lSDL -lGLU -lGL  >&5
-conftest.c:72:6: warning: conflicting types for built-in function 'strncasecmp'; expected 'int(const char *, const char *, long unsigned int)' [-Wbuiltin-declaration-mismatch]
-   72 | char strncasecmp ();
+configure:5985: gcc -o conftest -g -O2   conftest.c -lpthread -lm -lbluetooth -lglut -lSDL -lGLU -lGL  >&5
+conftest.c:71:6: warning: conflicting types for built-in function 'strncasecmp'; expected 'int(const char *, const char *, long unsigned int)' [-Wbuiltin-declaration-mismatch]
+   71 | char strncasecmp ();
       |      ^~~~~~~~~~~
 configure:5985: $? = 0
 configure:5985: result: yes
@@ -738,13 +763,13 @@ generated by GNU Autoconf 2.71.  Invocation command line was
 
 on ubuntu
 
-config.status:895: creating Makefile
-config.status:895: creating src/Makefile
-config.status:895: creating include/config.h
-config.status:1124: executing depfiles commands
-config.status:1201: cd src       && sed -e '/# am--include-marker/d' Makefile         | make -f - am--depfiles
+config.status:894: creating Makefile
+config.status:894: creating src/Makefile
+config.status:894: creating include/config.h
+config.status:1123: executing depfiles commands
+config.status:1200: cd src       && sed -e '/# am--include-marker/d' Makefile         | make -f - am--depfiles
 make: Nothing to be done for 'am--depfiles'.
-config.status:1206: $? = 0
+config.status:1205: $? = 0
 
 ## ---------------- ##
 ## Cache variables. ##
@@ -815,7 +840,7 @@ ac_cv_lib_GL_glEnable=yes
 ac_cv_lib_SDL_SDL_Init=yes
 ac_cv_lib_bluetooth_baswap=yes
 ac_cv_lib_glut_glutInit=yes
-ac_cv_lib_jpeg_jpeg_CreateCompress=yes
+ac_cv_lib_jpeg_jpeg_CreateCompress=no
 ac_cv_lib_m_sqrt=yes
 ac_cv_lib_pthread_pthread_create=yes
 ac_cv_objext=o
@@ -874,7 +899,7 @@ INSTALL_SCRIPT='${INSTALL}'
 INSTALL_STRIP_PROGRAM='$(install_sh) -c -s'
 LDFLAGS=''
 LIBOBJS=''
-LIBS='-lpthread -lm -lbluetooth -ljpeg -lglut -lSDL -lGLU -lGL '
+LIBS='-lpthread -lm -lbluetooth -lglut -lSDL -lGLU -lGL '
 LN_S='ln -s'
 LTLIBOBJS=''
 MAKEINFO='makeinfo'
@@ -925,7 +950,7 @@ host_vendor='pc'
 htmldir='${docdir}'
 includedir='${prefix}/include'
 infodir='${datarootdir}/info'
-install_sh='${SHELL} /home/ubuntu/Desktop/CSC85-RoboSoccer/RoboSoccer_EV3/install-sh'
+install_sh='${SHELL} /home/ubuntu/Desktop/C85/CSC85-RoboSoccer/RoboSoccer_EV3/install-sh'
 libdir='${exec_prefix}/lib'
 libexecdir='${exec_prefix}/libexec'
 localedir='${datarootdir}/locale'
@@ -934,7 +959,7 @@ mandir='${datarootdir}/man'
 mkdir_p='$(MKDIR_P)'
 oldincludedir='/usr/include'
 pdfdir='${docdir}'
-prefix='/home/ubuntu/Desktop/CSC85-RoboSoccer/RoboSoccer_EV3'
+prefix='/home/ubuntu/Desktop/C85/CSC85-RoboSoccer/RoboSoccer_EV3'
 program_transform_name='s,x,x,'
 psdir='${docdir}'
 runstatedir='${localstatedir}/run'
@@ -960,7 +985,6 @@ target_alias=''
 #define HAVE_LIBGLU 1
 #define HAVE_LIBSDL 1
 #define HAVE_LIBGLUT 1
-#define HAVE_LIBJPEG 1
 #define HAVE_LIBBLUETOOTH 1
 #define HAVE_LIBM 1
 #define HAVE_LIBPTHREAD 1

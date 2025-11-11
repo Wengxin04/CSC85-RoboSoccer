@@ -74,7 +74,7 @@
 
 // Replace your robot's hex identifier here so the code can talk to it.
 #ifndef HEXKEY
-	#define HEXKEY "00:16:53:3F:00:00"
+	#define HEXKEY "00:16:53:55:D9:FC"
 #endif
 
 int main(int argc, char **argv)
