@@ -1,0 +1,25 @@
+---
+config:
+  layout: elk
+---
+stateDiagram
+  direction TB
+  [*] --> Init
+  Init --> RotateToBall:find own, ball, and opponent blobs
+  RotateToBall --> GoStraight:facing ball
+  RotateToBall --> RotateToBall:still turning
+  RotateToBall --> Init:reset
+  GoStraight --> RotateAround:near ball
+  GoStraight --> GoStraight:still moving and far
+  GoStraight --> RotateToBall:lost track
+  RotateAround --> Kick:facing goal
+  RotateAround --> RotateAround:not aligned yet
+  RotateAround --> RotateToBall:lost track
+  Kick --> Done:finished kick
+  Done --> [*]
+  Init:Initial setup (100)
+  RotateToBall:Rotate towards ball (101)
+  GoStraight:Go straight towards ball (102)
+  RotateAround:Rotate around ball to face goal (103)
+  Kick:Kick (104)
+  Done:Done (199)
