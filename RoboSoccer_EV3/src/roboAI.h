@@ -27,14 +27,25 @@
 #include <stdlib.h>
 
 // Change this to match the ports your bots motors are connected to
+// TODOO: change it to the actual motor ports
 #define LEFT_MOTOR MOTOR_D
 #define RIGHT_MOTOR MOTOR_A
+#define KICK_MOTOR MOTOR_B
 
 #define AI_SOCCER 0 	// Play soccer!
 #define AI_PENALTY 1    // Go score some goals!
 #define AI_CHASE 2 	    // Kick the ball around and chase it!
 
 #define NOISE_VAR 5.0                   // Minimum amount of displacement considered NOT noise (in pixels).
+
+// TOSEE:
+// Penalty kick mode state definitions (100-199)
+#define ST_PENALTY_INIT 100           // Initial state
+#define ST_PENALTY_ROTATE_TO_BALL 101 // Rotate to face the ball
+#define ST_PENALTY_MOVE_TO_BALL 102   // Move to the ball
+#define ST_PENALTY_ALIGN_TO_GOAL 103  // Align to face the goal
+#define ST_PENALTY_KICK_BALL 104      // Kick the ball
+#define ST_PENALTY_DONE 199           // Penalty kick done
 
 struct AI_data{
 	// This data structure is used to hold all data relevant to the state of the AI.
@@ -150,5 +161,12 @@ struct displayList *clearDP(struct displayList *head);
    Add headers for your own functions implementing the bot's soccer
    playing functionality below.
 *****************************************************************************/
+
+// TOSEE (edit as needed):
+// basic, reusable soccer behaviours
+void rotate_to_blob(struct RoboAI *ai, struct blob *target);
+void move_to_blob(struct RoboAI *ai, struct blob *target);
+void align_to_goal_with_ball(struct RoboAI *ai, struct blob *ball);
+void kick_ball(struct RoboAI *ai, struct blob *ball);
 
 #endif

@@ -33,6 +33,11 @@ extern int sx;              // Get access to the image size from the imageCaptur
 extern int sy;
 int laggy=0;
 
+// declare static functions
+static void soccer_mode(struct RoboAI *ai, struct blob *blobs);
+static void penalty_mode(struct RoboAI *ai, struct blob *blobs);
+static void chase_mode(struct RoboAI *ai, struct blob *blobs);
+
 /**************************************************************
  * Display List Management
  * 
@@ -774,9 +779,23 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
    the bot is supposed to be doing.
   *****************************************************************************/
 //  fprintf(stderr,"Just trackin'!\n");	// bot, opponent, and ball.
-//  track_agents(ai,blobs);		// Currently, does nothing but endlessly track
- }
+  track_agents(ai,blobs);
+  
+  // get current state and call appropriate function
+  int state = ai->st.state;
 
+  if (state >= 0 && state < 100) {
+      // SOCCER mode
+      soccer_mode(ai, blobs);
+  } else if (state >= 100 && state < 200) {
+      // PENALTY mode
+      penalty_mode(ai, blobs);
+  } else if (state >= 200 && state < 300) {
+      // CHASE mode
+      chase_mode(ai, blobs);
+  } else {
+      fprintf(stderr, "Unknown AI state: %d\n", state);
+  }
 }
 
 /**********************************************************************************
@@ -792,5 +811,70 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
  You will lose marks if AI_main() is cluttered with code that doesn't belong
  there.
 **********************************************************************************/
+}
 
+static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
+}
 
+// TODOO: more detailed implementation
+static void penalty_mode(struct RoboAI *ai, struct blob *blobs) {
+  int state = ai->st.state;
+  struct blob *self = ai->st.self;
+  struct blob *ball = ai->st.ball;
+
+  // TODOO: add more transitions (lost track, reset, still moving etc)
+  // now only consider the main flow
+  switch (state) {
+    case ST_PENALTY_ROTATE_TO_BALL:
+      rotate_to_blob(ai, ball);
+      // if (/* check facing ball */) {
+      //   ai->st.state = ST_PENALTY_MOVE_TO_BALL;
+      // }
+      break;
+    case ST_PENALTY_MOVE_TO_BALL:
+      move_to_blob(ai, ball);
+      // if (/* check close to ball */) {
+      //   ai->st.state = ST_PENALTY_ALIGN_TO_GOAL;
+      // }
+      break;
+    case ST_PENALTY_ALIGN_TO_GOAL:
+      align_to_goal_with_ball(ai, ball);
+      // if (/* check aligned to goal */) {
+      //   ai->st.state = ST_PENALTY_KICK_BALL;
+      // }
+      break;
+    case ST_PENALTY_KICK_BALL:
+      kick_ball(ai, ball);
+      ai->st.state = ST_PENALTY_DONE;
+      break;
+    case ST_PENALTY_DONE:
+      // some logic
+      break;
+    default:
+      fprintf(stderr, "Unknown PENALTY state: %d\n", state);
+      ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
+      break;
+  }
+}
+
+static void chase_mode(struct RoboAI *ai, struct blob *blobs) {
+}
+
+// TODOO: implement the four functions below
+void rotate_to_blob(struct RoboAI *ai, struct blob *target) {
+
+}
+
+void move_to_blob(struct RoboAI *ai, struct blob *target) {
+
+}
+
+void align_to_goal_with_ball(struct RoboAI *ai, struct blob *ball) {
+
+}
+
+void kick_ball(struct RoboAI *ai, struct blob *ball) {
+
+}
+
+// TODOO: need functions to check status (i.e. facing ball, close to ball, aligned to goal)
