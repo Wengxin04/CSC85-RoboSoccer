@@ -960,7 +960,7 @@ void quick_face_to_ball(struct RoboAI *ai)
 
     double target_deg = curr_deg + ang_err_deg;
     const double THRESH = 10.0;
-    const double SPEED = 35.0;
+    const double SPEED = 30.0;
 
     // blocking turn to target using gyro
     while (1)
@@ -977,9 +977,9 @@ void quick_face_to_ball(struct RoboAI *ai)
             break;
         }
         if (err > 0)
-            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, -SPEED*1.1, SPEED);  // turn right
+            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(-SPEED*1.1), (char)(SPEED));  // turn right
         else
-            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, SPEED*1.1, -SPEED);  // turn left
+            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(SPEED*1.1), (char)(-SPEED));  // turn left
 
         usleep(10000); // 10ms
     }
@@ -1000,8 +1000,8 @@ void approach_to_ball(struct RoboAI *ai)
 
     // rate of angle change from gyro as D term
     int g_angle = 0, g_rate = 0;
-    BT_read_gyro(GYRO_PORT, 1, &g_angle, &g_rate);
-    double gyro_rate_scaled = ((double)g_rate) / 60.0;
+    BT_read_gyro(GYRO_PORT, 0, &g_angle, &g_rate);
+    double gyro_rate_scaled = ((double)g_rate) / 60.0; // scale 值要调，不确定要不要
 
     // // use static variable to store previous angle error for D term image自身的d项，有需要再加吧
     // static double prev_ang_err = 0.0;
@@ -1009,40 +1009,37 @@ void approach_to_ball(struct RoboAI *ai)
     // prev_ang_err = ang_err;
 
     // turn PD control
-    const double Kp_turn = 3.0; // 要调参
-    const double Kd_g = 6.0;// 要调参
-    const double Kd_v = 0.0;// 要调参
+    const double Kp_turn = 1.6; // 要调参
+    const double Kd_g = 7.5;// 要调参
+   // const double Kd_v = 0.0;// 要调参
     double turn = Kp_turn * ang_err
                 - Kd_g * gyro_rate_scaled;
                // + Kd_v * d_err_vis; // pd
+    // turn limits
+    if (turn > 12) turn = 12;
+    if (turn < -12) turn = -12;
 
     // distance to ball
-    double target_dist = 40.0;  // target distance to ball
+    double target_dist = 40.0;  // target distance to ball // 要调参
     double dist_err = 0.0, d_dist = 0.0;
     double dist = compute_distance_error(ai, target_dist, &dist_err, &d_dist);
 
     // forward PD control --> 接近时减速
-    const double Kp_fwd = 0.8; // 要调参
-    const double Kd_fwd = 2.5;// 要调参
+    const double Kp_fwd = 0.3; // 要调参
+    const double Kd_fwd = 1.2;// 要调参
     double forward_speed = Kp_fwd * dist_err - Kd_fwd * d_dist; // pd
 
     // speed limits
-    if (forward_speed > 80) forward_speed = 80;
-    if (forward_speed < 25) forward_speed = 25;
+    if (forward_speed > 30) forward_speed = 30;
+    if (forward_speed < 15) forward_speed = 15;
 
     // compute left/right motor speeds
     double left  = (forward_speed - turn) * 1.1; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
     double right = forward_speed + turn;
 
-    // speed limits
-    if (left > 100) left  = 100;
-    if (right > 100) right = 100;
-    if (left  < -100) left  = -100;
-    if (right < -100) right = -100;
-
     // deadband - ensure minimum speed to overcome friction
-    if (fabs(left)  < 10) left  = (left>=0?10:-10);
-    if (fabs(right) < 10) right = (right>=0?10:-10);
+    if (fabs(left)  < 8) left  = (left>=0?8:-8);
+    if (fabs(right) < 8) right = (right>=0?8:-8);
 
     // stop condition
     // 可以之后增加连续停止的判定，防止误停？
