@@ -811,6 +811,7 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
  You will lose marks if AI_main() is cluttered with code that doesn't belong
  there.
 **********************************************************************************/
+
 }
 
 static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
@@ -878,3 +879,184 @@ void kick_ball(struct RoboAI *ai, struct blob *ball) {
 }
 
 // TODOO: need functions to check status (i.e. facing ball, close to ball, aligned to goal)
+
+
+
+/////////////////////////////////////////////////////////////////////////////////
+// temporary logic
+// without test yet !
+// 有八百个参数可能要调
+/////////////////////////////////////////////////////////////////////////////////
+
+// 这个用作计算机器人当前朝向和球的角度差的helper func
+// 返回值是度数(degrees)，正负表示方向, normalized to [-180, 180]
+double compute_angle_error_to_ball(struct RoboAI *ai)
+{
+    if (!ai || !ai->st.self || !ai->st.ball) return NAN;
+
+    // position deltas
+    double dx = ai->st.ball->cx - ai->st.self->cx;
+    double dy = ai->st.ball->cy - ai->st.self->cy;
+
+    double ang_to_ball = atan2(dy, dx);
+    double ang_bot = atan2(ai->st.sdy, ai->st.sdx);
+
+    // angle error
+    double ang_err = ang_to_ball - ang_bot;
+    // normalized to [-pi, pi]
+    while (ang_err >  M_PI) ang_err -= 2*M_PI;
+    while (ang_err < -M_PI) ang_err += 2*M_PI;
+    // convert to degrees
+    double ang_err_deg = ang_err * (180.0 / M_PI);
+    return ang_err_deg;
+}
+
+// 计算机器人和球的距离误差 的helper func
+// target_dist 是目标距离(e.g. 距离球40)， dist_err返回当前距离和目标距离的差值， d_dist返回距离的变化率
+// 返回当前距离
+double compute_distance_error(struct RoboAI *ai,
+                              double target_dist,
+                              double *dist_err,
+                              double *d_dist)
+{
+    if (!ai || !ai->st.self || !ai->st.ball) return NAN;
+
+    // current distance 
+    double dx = ai->st.ball->cx - ai->st.self->cx;
+    double dy = ai->st.ball->cy - ai->st.self->cy;
+    double dist = hypot(dx, dy);
+
+    // prev distance
+    double old_dx = ai->st.old_bcx - ai->st.old_scx;
+    double old_dy = ai->st.old_bcy - ai->st.old_scy;
+    double old_dist = hypot(old_dx, old_dy);
+
+    // distance difference 
+    if (dist_err) *dist_err = dist - target_dist;  // distance error to target
+    if (d_dist)   *d_dist   = old_dist - dist;  // distance change rate
+
+    return dist;
+}
+
+// 调用前后检查角度！ 如果面向球角度差小于10度则 --> 进入下一个state
+// 这是使用gryo的阻塞的！快速转向函数
+// 调用后机器人应当面向球, 但此时的机器人位置可能有偏差(并不是精准朝向球的位置)（不管，依靠approach的pd调整！）
+void quick_face_to_ball(struct RoboAI *ai)
+{
+    if (ai->st.ball == NULL || ai->st.self == NULL) return;
+
+    // init current gyro reading
+    int gyro_angle = 0, gyro_rate = 0;
+    BT_read_gyro(GYRO_PORT, 1, &gyro_angle, &gyro_rate);
+    double curr_deg = (double)gyro_angle;
+
+    // compute angle error to ball
+    double ang_err_deg = compute_angle_error_to_ball(ai);
+    if (isnan(ang_err_deg)) return;
+    if (fabs(ang_err_deg) < 10.0) return; 
+
+    double target_deg = curr_deg + ang_err_deg;
+    const double THRESH = 10.0;
+    const double SPEED = 35.0;
+
+    // blocking turn to target using gyro
+    while (1)
+    {
+        BT_read_gyro(GYRO_PORT, 0, &gyro_angle, &gyro_rate);
+        curr_deg = (double)gyro_angle;
+        double err = target_deg - curr_deg;
+        while (err > 180.0) err -= 360.0;
+        while (err < -180.0) err += 360.0;
+
+        if (fabs(err) < THRESH)
+        {
+            BT_all_stop(0);
+            break;
+        }
+        if (err > 0)
+            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, -SPEED*1.1, SPEED);  // turn right
+        else
+            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, SPEED*1.1, -SPEED);  // turn left
+
+        usleep(10000); // 10ms
+    }
+    BT_all_stop(0);
+}
+
+// assume 已经朝向了球， 如果没有朝向球（角度差 > ?? 12度 ）返回上一个state(使用gryo 旋转)
+// 先init gryo sensor 在第一次调用前
+// non- blocking & frame - driven
+// 根据机器人和球的位置动态调整左右motor，是机器人可以更精准地接近球
+void approach_to_ball(struct RoboAI *ai)
+{
+    if (!ai || !ai->st.self || !ai->st.ball) return;
+
+    // angle error to ball as P term
+    double ang_err = compute_angle_error_to_ball(ai);
+    if (isnan(ang_err)) return;
+
+    // rate of angle change from gyro as D term
+    int g_angle = 0, g_rate = 0;
+    BT_read_gyro(GYRO_PORT, 1, &g_angle, &g_rate);
+    double gyro_rate_scaled = ((double)g_rate) / 60.0;
+
+    // // use static variable to store previous angle error for D term image自身的d项，有需要再加吧
+    // static double prev_ang_err = 0.0;
+    // double d_err_vis = ang_err - prev_ang_err;
+    // prev_ang_err = ang_err;
+
+    // turn PD control
+    const double Kp_turn = 3.0; // 要调参
+    const double Kd_g = 6.0;// 要调参
+    const double Kd_v = 0.0;// 要调参
+    double turn = Kp_turn * ang_err
+                - Kd_g * gyro_rate_scaled;
+               // + Kd_v * d_err_vis; // pd
+
+    // distance to ball
+    double target_dist = 40.0;  // target distance to ball
+    double dist_err = 0.0, d_dist = 0.0;
+    double dist = compute_distance_error(ai, target_dist, &dist_err, &d_dist);
+
+    // forward PD control --> 接近时减速
+    const double Kp_fwd = 0.8; // 要调参
+    const double Kd_fwd = 2.5;// 要调参
+    double forward_speed = Kp_fwd * dist_err - Kd_fwd * d_dist; // pd
+
+    // speed limits
+    if (forward_speed > 80) forward_speed = 80;
+    if (forward_speed < 25) forward_speed = 25;
+
+    // compute left/right motor speeds
+    double left  = (forward_speed - turn) * 1.1; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
+    double right = forward_speed + turn;
+
+    // speed limits
+    if (left > 100) left  = 100;
+    if (right > 100) right = 100;
+    if (left  < -100) left  = -100;
+    if (right < -100) right = -100;
+
+    // deadband - ensure minimum speed to overcome friction
+    if (fabs(left)  < 10) left  = (left>=0?10:-10);
+    if (fabs(right) < 10) right = (right>=0?10:-10);
+
+    // stop condition
+    // 可以之后增加连续停止的判定，防止误停？
+    if (dist < target_dist + 5.0) {
+        BT_all_stop(0);
+        return;
+    }
+
+    BT_drive(LEFT_MOTOR, RIGHT_MOTOR, left, right);
+}
+
+void rotate_to_goal(struct RoboAI *ai)
+{
+    // TODO
+}
+
+void kick_ball(struct RoboAI *ai)
+{
+    // TODO
+}
