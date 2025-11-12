@@ -1079,7 +1079,7 @@ void rotate_to_goal(struct RoboAI *ai)
 
     // init gyro reading and use our computed angle diff
     int gyro_angle = 0, gyro_rate = 0;
-    BT_read_gyro(GYRO_PORT, 1, &gyro_angle, &gyro_rate);  // reset
+    BT_read_gyro(GYRO_PORT, 1, &gyro_angle, &gyro_rate);  // reset // 最好不要一直reset，在最开始reset// todo
     double gyro_start = (double)gyro_angle;
     double target_deg_gyro = gyro_start + delta_field;
 
@@ -1118,4 +1118,84 @@ void kick_ball(struct RoboAI *ai)
     BT_drive(LEFT_MOTOR, RIGHT_MOTOR, 80, 80);
     sleep(1);
     BT_all_stop(0);
+}
+
+// blocking rotate by step_deg degrees 旋转固定角度
+// positive for CCW, negative for CW
+void rotate_step_blocking(double step_deg)
+{
+    int gyro_angle = 0, gyro_rate = 0;
+    BT_read_gyro(GYRO_PORT, 1, &gyro_angle, &gyro_rate); // reset gryo
+    double curr_deg = (double)gyro_angle;
+
+    double target_deg = curr_deg + step_deg;   
+    const double THRESH = 2.0;                 // 可调
+    const double SPEED = 30.0;       // 可调
+
+    
+
+    while (1)
+    {
+        BT_read_gyro(GYRO_PORT, 0, &gyro_angle, &gyro_rate);
+        curr_deg = (double)gyro_angle;
+
+        double err = target_deg - curr_deg;
+        while (err > 180.0) err -= 360.0;
+        while (err < -180.0) err += 360.0;
+
+        if (fabs(err) < THRESH) {
+            BT_all_stop(0);
+            break;
+        }
+
+        if (err > 0)
+            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(-SPEED), (char)(SPEED)); // 左
+        else
+            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(SPEED), (char)(-SPEED)); // 右
+
+        usleep(10000); // 10 ms
+    }
+
+    BT_all_stop(0);
+}
+
+// 每帧调用
+// 如果没有面向球，则朝球的方向旋转10度（可能的step degreee）
+void chase_rotate(struct RoboAI *ai)
+{
+    if (!ai || !ai->st.self || !ai->st.ball) return;
+
+    // compute angle error to ball
+    double ang_err_deg = compute_angle_error_to_ball(ai);
+    if (isnan(ang_err_deg)) return;
+
+    //参数设定 --> 可调
+    const double ALIGN_THRESH = 8.0;  
+   // const double STEP_DEG = 30.0; // 先尝试固定step 吧
+    const double STEP_MAX = 30.0;      // 最大步长
+    const double STEP_MIN = 5.0;       // 最小步长
+
+    // P 根据ang difference 控制旋转步长
+    // 可pd？
+    const double Kp = 0.4;            // 比例系数（角度越大旋转越多）
+    double step = Kp * ang_err_deg;   // P 控制输出
+    // limit step size
+    if (step > STEP_MAX) step = STEP_MAX;
+    if (step < -STEP_MAX) step = -STEP_MAX;
+    if (fabs(step) < STEP_MIN) step = (step > 0 ? STEP_MIN : -STEP_MIN); // 最小步长
+
+    // 如果需要旋转，则旋转一个step
+    if (fabs(ang_err_deg) > ALIGN_THRESH)
+    {
+        // 旋转方向！朝球的方向旋转
+        // double step = (ang_err_deg > 0 ? STEP_DEG : -STEP_DEG);
+
+        // this is blocking！
+        rotate_step_blocking(step);
+    }
+    else
+    {
+       
+        BT_all_stop(0);
+    }
 }
