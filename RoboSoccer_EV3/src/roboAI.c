@@ -29,6 +29,8 @@
 ***************************************************************************/
 
 #include "roboAI.h"			// <--- Look at this header file!
+
+#include <math.h>
 extern int sx;              // Get access to the image size from the imageCapture module
 extern int sy;
 int laggy=0;
@@ -505,7 +507,7 @@ void id_bot(struct RoboAI *ai, struct blob *blobs)
  
  track_agents(ai,blobs);		// Call the tracking function to find each agent
 
- BT_drive(LEFT_MOTOR, RIGHT_MOTOR, 30);			// Start forward motion to establish heading
+ BT_drive(LEFT_MOTOR, RIGHT_MOTOR, 30, 30);			// Start forward motion to establish heading
                                                 // Will move for a few frames.
   
  if (ai->st.selfID==1&&ai->st.self!=NULL)
@@ -561,7 +563,7 @@ int setupAI(int mode, int own_col, struct RoboAI *ai)
         ai->st.state=0;		// <-- Set AI initial state to 0
         break;
  case AI_PENALTY:
-// 	fprintf(stderr,"Penalty mode! let's kick it!\n");
+	fprintf(stderr,"Penalty mode! let's kick it!\n");
 	ai->st.state=100;	// <-- Set AI initial state to 100
         break;
  case AI_CHASE:
@@ -778,7 +780,7 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
    state transitions and with calling the appropriate function based on what
    the bot is supposed to be doing.
   *****************************************************************************/
-//  fprintf(stderr,"Just trackin'!\n");	// bot, opponent, and ball.
+ fprintf(stderr,"Just trackin with state'!\n", ai->st.state);	// bot, opponent, and ball.
   track_agents(ai,blobs);
   
   // get current state and call appropriate function
@@ -819,6 +821,7 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
 
 // TODOO: more detailed implementation
 static void penalty_mode(struct RoboAI *ai, struct blob *blobs) {
+  fprintf(stderr, "In PENALTY mode, current state: %d\n", ai->st.state);
   int state = ai->st.state;
   struct blob *self = ai->st.self;
   struct blob *ball = ai->st.ball;

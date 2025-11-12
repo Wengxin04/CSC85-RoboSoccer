@@ -29,7 +29,7 @@
 #define HAVE_LIBGLUT 1
 
 /* Define to 1 if you have the `jpeg' library (-ljpeg). */
-/* #undef HAVE_LIBJPEG */
+#define HAVE_LIBJPEG 1
 
 /* Define to 1 if you have the `m' library (-lm). */
 #define HAVE_LIBM 1

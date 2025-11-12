@@ -442,7 +442,8 @@ int BT_all_stop(int brake_mode){
 }
 
 
-int BT_drive(char lport, char rport, char power){
+
+int BT_drive(char lport, char rport, char lpower, char rpower){
  ////////////////////////////////////////////////////////////////////////////////////////////////
  // This function sends a command to the left and right motor ports to set the motor power to
  // the desired value. You can drive forward or backward depending on the sign of the power
@@ -467,48 +468,52 @@ int BT_drive(char lport, char rport, char power){
  // Returns: 0 on success
  //          -1 otherwise
  //////////////////////////////////////////////////////////////////////////////////////////////////
- 
  void *p;
  unsigned char *cp;
- char ports;
  char reply[1024];
- unsigned char cmd_string[15]={0x0D,0x00, 0x00,0x00, 0x00,  0x00,0x00,  0xA4,      0x00,    0x00,       0x81,0x00,   0xA6,    0x00,   0x00};
- //                           |length-2| | cnt_id | |type| | header |  |set power| |layer|  |port ids|  |power|      |start|  |layer| |port id|
+ // Command layout: set power left, set power right, start both ports
+ unsigned char cmd_string[20]={0x12,0x00, 0x00,0x00, 0x00,  0x00,0x00,  0xA4,      0x00,    0x00,      0x81,0x00,    0xA4,     0x00,     0x00, 0x81,0x00,  0xA6,    0x00,   0x00};
+ //                          |length-2| | cnt_id | |type| | header |  |set power| |layer|  |lport id|  |power|  |set power| |layer| |rport id| |power|     |start|  |layer| |port ids|
 
- if (power>100||power<-100)
- {
-  fprintf(stderr,"BT_drive: Power must be in [-100, 100]\n");
+ // Validate power range
+ if (lpower > 100 || lpower < -100 || rpower > 100 || rpower < -100) {
+  fprintf(stderr,"BT_drive: Power must in [-100, 100]\n");
   return(-1);
  }
 
- if (lport>8 || rport>8)
- {
+ // Validate port ids (same checks used elsewhere: valid values up to 8)
+ if (lport > 8 || rport > 8) {
   fprintf(stderr,"BT_drive: Invalid port id value\n");
   return(-1);
  }
- ports = lport|rport;
 
- // Set message count id
+ // Set message count id (little-endian)
  p=(void *)&message_id_counter;
  cp=(unsigned char *)p;
  cmd_string[2]=*cp;
  cmd_string[3]=*(cp+1);
 
- cmd_string[9]=ports;
- cmd_string[11]=power;
- cmd_string[14]=ports;
+ // set up power and port for left motor
+ cmd_string[9]=lport;
+ cmd_string[11]=(unsigned char)lpower;
 
+ // set up power and port for right motor
+ cmd_string[14]=rport;
+ cmd_string[16]=(unsigned char)rpower;
 
-#ifdef __BT_debug 
+ // start both ports
+ cmd_string[19]= lport | rport;
+
+#ifdef __BT_debug
  fprintf(stderr,"BT_drive command string:\n");
- for(int i=0; i<16; i++)
+ for(int i=0; i<20; i++)
  {
-  fprintf(stderr,"%X, ",cmd_string[i]&0xff);
+  fprintf(stderr,"%02X, ",cmd_string[i]&0xff);
  }
  fprintf(stderr,"\n");
-#endif  
+#endif
 
- write(*socket_id,&cmd_string[0],15);
+ write(*socket_id,&cmd_string[0],20);
  read(*socket_id,&reply[0],1023);
 
  message_id_counter++;
@@ -517,13 +522,11 @@ int BT_drive(char lport, char rport, char power){
 #ifdef __BT_debug
   fprintf(stderr,"BT_drive command(): Command successful\n");
 #endif
- }
- else{
+  return 0;
+ } else {
   fprintf(stderr,"BT_drive command(): Command failed\n");
-  return(-1);
+  return -1;
  }
-
- return(0);
 }
 
 

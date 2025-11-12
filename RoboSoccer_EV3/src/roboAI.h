@@ -28,9 +28,10 @@
 
 // Change this to match the ports your bots motors are connected to
 // TODOO: change it to the actual motor ports
-#define LEFT_MOTOR MOTOR_D
-#define RIGHT_MOTOR MOTOR_A
-#define KICK_MOTOR MOTOR_B
+#define LEFT_MOTOR MOTOR_C
+#define RIGHT_MOTOR MOTOR_D
+#define KICK_MOTOR MOTOR_A
+#define GYRO_PORT PORT_4
 
 #define AI_SOCCER 0 	// Play soccer!
 #define AI_PENALTY 1    // Go score some goals!

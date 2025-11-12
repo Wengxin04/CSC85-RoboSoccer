@@ -129,7 +129,7 @@ int BT_play_tone_sequence(const int tone_data[50][3]);
 int BT_motor_port_start(char port_ids, char power);			// General motor port control
 int BT_motor_port_stop(char port_ids, int brake_mode);			// General motor port stop
 int BT_all_stop(int brake_mode);					// Quick call to stop everything
-int BT_drive(char lport, char rport, char power);			// Constant speed drive (equal speed both ports)
+int BT_drive(char lport, char rport, char lpower, char rpower);			// Constant speed drive (equal speed both ports)
 int BT_turn(char lport, char lpower,  char rport, char rpower);		// Individual control for two wheels for turning
 
 // Timed functions will allow you to build carefully programmed motions. The motor is set to the specified power
