@@ -1051,12 +1051,71 @@ void approach_to_ball(struct RoboAI *ai)
     BT_drive(LEFT_MOTOR, RIGHT_MOTOR, left, right);
 }
 
+/// 使机器人面向对方球门
+// blocking！
 void rotate_to_goal(struct RoboAI *ai)
 {
-    // TODO
+    if (!ai || !ai->st.self) return;
+    struct blob *self = ai->st.self;
+
+    // normalize to unit vector
+    double sdx = self->dx;
+    double sdy = self->dy;
+    double s_norm = sqrt(sdx*sdx + sdy*sdy);
+    if (s_norm < 1e-3) return;
+    sdx /= s_norm; sdy /= s_norm;
+
+    // compute current field direction in degrees
+    double curr_field_deg = atan2(sdy, sdx) * 180.0 / M_PI;
+    if (curr_field_deg < 0) curr_field_deg += 360.0;
+
+    // compute target field direction based on side (0 for left or 180 for right)
+    double target_field_deg = (ai->st.side == 0) ? 180.0 : 0.0;
+
+    // compute angle difference relative to field direction and normalize to [-180, 180]
+    double delta_field = target_field_deg - curr_field_deg;
+    while (delta_field > 180) delta_field -= 360;
+    while (delta_field < -180) delta_field += 360;
+
+    // init gyro reading and use our computed angle diff
+    int gyro_angle = 0, gyro_rate = 0;
+    BT_read_gyro(GYRO_PORT, 1, &gyro_angle, &gyro_rate);  // reset
+    double gyro_start = (double)gyro_angle;
+    double target_deg_gyro = gyro_start + delta_field;
+
+    
+    const double THRESH = 10.0;
+    const double SPEED  = 30.0;
+    // blocking turn to target using gyro
+    while (1)
+    {
+        BT_read_gyro(GYRO_PORT, 0, &gyro_angle, &gyro_rate);
+        double curr_deg = (double)gyro_angle;
+        double err = target_deg_gyro - curr_deg;
+        while (err > 180.0) err -= 360.0;
+        while (err < -180.0) err += 360.0;
+
+        if (fabs(err) < THRESH) {
+            BT_all_stop(0);
+            break;
+        }
+
+        if (err > 0)
+            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, -SPEED * 1.1, SPEED);  
+        else
+            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, SPEED * 1.1, -SPEED ); 
+
+        usleep(10000);
+    }
+    BT_all_stop(0);
 }
 
+// blocking
 void kick_ball(struct RoboAI *ai)
 {
-    // TODO
+    // temporary simple kick logic - drive forward fast for 1 second
+    // replace with kick motor control if available
+    BT_drive(LEFT_MOTOR, RIGHT_MOTOR, 80, 80);
+    sleep(1);
+    BT_all_stop(0);
 }
