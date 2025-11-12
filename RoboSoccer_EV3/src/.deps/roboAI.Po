@@ -240,7 +240,8 @@ roboAI.o: roboAI.c /usr/include/stdc-predef.h roboAI.h \
  /usr/include/bluetooth/hci.h /usr/include/bluetooth/hci_lib.h \
  /usr/include/bluetooth/rfcomm.h API/bytecodes.h API/c_com.h \
  /usr/include/dirent.h /usr/include/x86_64-linux-gnu/bits/dirent.h \
- /usr/include/x86_64-linux-gnu/bits/dirent_ext.h API/lmstypes.h
+ /usr/include/x86_64-linux-gnu/bits/dirent_ext.h API/lmstypes.h \
+ /usr/lib/gcc/x86_64-linux-gnu/13/include/stdbool.h
 /usr/include/stdc-predef.h:
 roboAI.h:
 imagecapture/imageCapture.h:
@@ -555,3 +556,4 @@ API/c_com.h:
 /usr/include/x86_64-linux-gnu/bits/dirent.h:
 /usr/include/x86_64-linux-gnu/bits/dirent_ext.h:
 API/lmstypes.h:
+/usr/lib/gcc/x86_64-linux-gnu/13/include/stdbool.h:

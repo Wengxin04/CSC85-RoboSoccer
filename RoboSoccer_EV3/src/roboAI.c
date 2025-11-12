@@ -31,6 +31,12 @@
 #include "roboAI.h"			// <--- Look at this header file!
 
 #include <math.h>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+#include <stdbool.h>
+
 extern int sx;              // Get access to the image size from the imageCapture module
 extern int sy;
 int laggy=0;
@@ -39,6 +45,61 @@ int laggy=0;
 static void soccer_mode(struct RoboAI *ai, struct blob *blobs);
 static void penalty_mode(struct RoboAI *ai, struct blob *blobs);
 static void chase_mode(struct RoboAI *ai, struct blob *blobs);
+
+// Tuning knobs for penalty routine
+enum {
+    FACE_THRESH_DEG   = 8,    // tweak
+    ALIGN_THRESH_DEG  = 10,   // tweak
+    TARGET_BALL_DIST  = 40,   // pixels; tweak to your scale
+    CLOSE_BALL_SLACK  = 5,    // +/-
+    BEHIND_BALL_GAP   = 10    // min px robot should be "behind" ball wrt goal
+};
+
+// Helpers (predicates)
+static inline double deg_wrap(double d){
+    while (d > 180) d -= 360;
+    while (d < -180) d += 360;
+    return d;
+}
+
+static bool is_facing_ball(struct RoboAI *ai) {
+    double e = compute_angle_error_to_ball(ai);
+    return !isnan(e) && fabs(e) <= FACE_THRESH_DEG;
+}
+
+static bool is_close_to_ball(struct RoboAI *ai) {
+    double de = 0, dd = 0;
+    double d = compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd);
+    return !isnan(d) && d <= (TARGET_BALL_DIST + CLOSE_BALL_SLACK);
+}
+
+// are we behind the ball and pointing so that a straight push sends the ball toward the opponent goal?
+static bool is_aligned_to_goal_for_shot(struct RoboAI *ai) {
+    if (!ai || !ai->st.self || !ai->st.ball) return false;
+
+    // Vector robot->ball
+    double rbx = ai->st.ball->cx - ai->st.self->cx;
+    double rby = ai->st.ball->cy - ai->st.self->cy;
+    double rbn = hypot(rbx, rby);
+    if (rbn < 1e-6) return false;
+    rbx /= rbn; rby /= rbn;
+
+    // "Goal direction" unit vector in field coordinates.
+    // By your rotate_to_goal(): side==0 -> face 180° (negative X), else 0° (positive X)
+    double gx = (ai->st.side == 0) ? -1.0 : 1.0;
+    double gy = 0.0;
+
+    // angle between robot->ball and goal dir
+    double dot = rbx*gx + rby*gy;
+    double ang_deg = acos(fmax(-1.0, fmin(1.0, dot))) * 180.0 / M_PI;
+
+    // "behind ball" condition so we push *through* the ball toward goal
+    bool behind =
+        (ai->st.side == 0) ? (ai->st.self->cx >= ai->st.ball->cx + BEHIND_BALL_GAP)
+                           : (ai->st.self->cx <= ai->st.ball->cx - BEHIND_BALL_GAP);
+
+    return (ang_deg <= ALIGN_THRESH_DEG) && behind;
+}
 
 /**************************************************************
  * Display List Management
@@ -823,36 +884,44 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
 static void penalty_mode(struct RoboAI *ai, struct blob *blobs) {
   fprintf(stderr, "In PENALTY mode, current state: %d\n", ai->st.state);
   int state = ai->st.state;
-  struct blob *self = ai->st.self;
-  struct blob *ball = ai->st.ball;
 
   // TODOO: add more transitions (lost track, reset, still moving etc)
   // now only consider the main flow
   switch (state) {
     case ST_PENALTY_ROTATE_TO_BALL:
-      rotate_to_blob(ai, ball);
-      // if (/* check facing ball */) {
-      //   ai->st.state = ST_PENALTY_MOVE_TO_BALL;
-      // }
+      rotate_to_blob(ai);
+      if (is_facing_ball(ai)) {
+        ai->st.state = ST_PENALTY_MOVE_TO_BALL;
+      }
       break;
     case ST_PENALTY_MOVE_TO_BALL:
-      move_to_blob(ai, ball);
-      // if (/* check close to ball */) {
-      //   ai->st.state = ST_PENALTY_ALIGN_TO_GOAL;
-      // }
+      move_to_blob(ai);
+      if (!is_facing_ball(ai)) {
+        ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
+        BT_all_stop(0);
+        break;
+      } else if (is_close_to_ball(ai)) {
+        ai->st.state = ST_PENALTY_ALIGN_TO_GOAL;
+        BT_all_stop(0);
+      }
       break;
     case ST_PENALTY_ALIGN_TO_GOAL:
-      align_to_goal_with_ball(ai, ball);
-      // if (/* check aligned to goal */) {
-      //   ai->st.state = ST_PENALTY_KICK_BALL;
-      // }
+      align_to_goal_with_ball(ai);
+      if (!is_facing_ball(ai)) {
+        ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
+        BT_all_stop(0);
+        break;
+      } else if (is_aligned_to_goal_for_shot(ai) && is_close_to_ball(ai)) {
+        ai->st.state = ST_PENALTY_KICK_BALL;
+        BT_all_stop(0);
+      }
       break;
     case ST_PENALTY_KICK_BALL:
-      kick_ball(ai, ball);
+      kick_ball(ai);
       ai->st.state = ST_PENALTY_DONE;
       break;
     case ST_PENALTY_DONE:
-      // some logic
+      BT_all_stop(0);
       break;
     default:
       fprintf(stderr, "Unknown PENALTY state: %d\n", state);
@@ -865,24 +934,53 @@ static void chase_mode(struct RoboAI *ai, struct blob *blobs) {
 }
 
 // TODOO: implement the four functions below
-void rotate_to_blob(struct RoboAI *ai, struct blob *target) {
-
+void rotate_to_blob(struct RoboAI *ai) {
+  // we always rotate to the ball in penalty; keep signature for symmetry
+  // fast, blocking snap using gyro
+  quick_face_to_ball(ai);
+  // non-blocking fallback (if quick_face was within threshold it returns immediately)
+  // nothing else needed here
 }
 
-void move_to_blob(struct RoboAI *ai, struct blob *target) {
-
+void move_to_blob(struct RoboAI *ai) {
+    // frame-driven PD approach; stops itself when close
+    approach_to_ball(ai);
 }
 
-void align_to_goal_with_ball(struct RoboAI *ai, struct blob *ball) {
+void align_to_goal_with_ball(struct RoboAI *ai) {
+    // ensure we keep the ball centered while we drift into a "behind the ball" pose
+    if (!is_facing_ball(ai)) {
+        // small corrective snap toward the ball
+        quick_face_to_ball(ai);
+        return;
+    }
 
+    if (!is_aligned_to_goal_for_shot(ai)) {
+        // Not behind or not well aligned.
+        // Simple heuristic: circle slightly around the ball toward the required side.
+        // Positive step if we need to move "upfield", negative otherwise.
+        double step = (ai->st.side == 0) ? +12.0 : -12.0; // tweak
+        rotate_step_blocking(step);
+        // Then take a tiny approach step to settle the arc
+        approach_to_ball(ai);
+        return;
+    }
+
+    // At this point we are behind and oriented; do nothing here.
 }
 
-void kick_ball(struct RoboAI *ai, struct blob *ball) {
-
+// blocking
+void kick_ball(struct RoboAI *ai)
+{
+    // temporary simple kick logic - drive forward fast for 1 second
+    // replace with kick motor control if available
+    BT_drive(LEFT_MOTOR, RIGHT_MOTOR, 80, 80);
+    sleep(1);
+    BT_all_stop(0);
 }
 
 // TODOO: need functions to check status (i.e. facing ball, close to ball, aligned to goal)
-
+// at top of file
 
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -1107,16 +1205,6 @@ void rotate_to_goal(struct RoboAI *ai)
 
         usleep(10000);
     }
-    BT_all_stop(0);
-}
-
-// blocking
-void kick_ball(struct RoboAI *ai)
-{
-    // temporary simple kick logic - drive forward fast for 1 second
-    // replace with kick motor control if available
-    BT_drive(LEFT_MOTOR, RIGHT_MOTOR, 80, 80);
-    sleep(1);
     BT_all_stop(0);
 }
 
