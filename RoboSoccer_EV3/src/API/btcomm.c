@@ -487,6 +487,9 @@ int BT_drive(char lport, char rport, char lpower, char rpower){
   return(-1);
  }
 
+ lpower = -lpower;  // Invert left motor power to match physical configuration
+ rpower = -rpower;  // Invert right motor power to match physical configuration
+
  // Set message count id (little-endian)
  p=(void *)&message_id_counter;
  cp=(unsigned char *)p;
@@ -573,6 +576,9 @@ int BT_turn(char lport, char lpower, char rport, char rpower){
   return(-1);
  }
 
+ lpower = -lpower;  // Invert left motor power to match physical configuration
+ rpower = -rpower;  // Invert right motor power to match physical configuration
+
  // Set message count id
  p=(void *)&message_id_counter;
  cp=(unsigned char *)p;
@@ -643,7 +649,7 @@ int BT_timed_motor_port_start(char port_id, char power, int ramp_up_time, int ru
  char reply[1024];
  unsigned char cmd_string[22]={0x00,0x00, 0x00,0x00, 0x00,  0x00,0x00,  0x00,  0x00,   0x00,     0x81,0x00, 0x00,0x00,0x00, 0x00,0x00,0x00,  0x00,0x00,0x00,     0x00};
  //                          |length-2| | cnt_id | |type|   |header|    |cmd| |layer| |port ids|  |power|      |ramp up|      |run|           |ramp down|      |brake|
-
+  power = -power;  // Invert motor power to match physical configuration
  if (power>100||power<-100)
  {
   fprintf(stderr,"BT_timed_motor_port_start: Power must be in [-100, 100]\n");
@@ -737,6 +743,7 @@ int BT_timed_motor_port_start_v2(char port_id, char power, int time){
  unsigned char *cp;
  char reply[1024];
 
+ power = -power;  // Invert motor power to match physical configuration
  unsigned char cmd[26]= {0x00,0x00, 0x00,0x00, 0x00, 0x00,0x00,  0xA4,   0x00,  0x00, 0x81,0x00, 0xA6,  0x00,   0x00,   0x00, 0x00, 0x00,0x00, 0x00,       0x00,   0x00,      0xA3, 0x00,     0x00,   0x00};
  //                     |length-2| |cnt_id|   |type| |header| |set_pwr| |layer| |port| |power|  |start| |layer| |port|  |wait| |LC2|    |time| |var addr| |ready| |var addr| |stop| |layer| |port_id| |break|
 

@@ -49,8 +49,8 @@ static void chase_mode(struct RoboAI *ai, struct blob *blobs);
 // Tuning knobs for penalty routine
 enum {
     FACE_THRESH_DEG   = 8,    // tweak
-    ALIGN_THRESH_DEG  = 10,   // tweak
-    TARGET_BALL_DIST  = 40,   // pixels; tweak to your scale
+    ALIGN_THRESH_DEG  = 20,   // tweak
+    TARGET_BALL_DIST  = 100,   // pixels; tweak to your scale
     CLOSE_BALL_SLACK  = 5,    // +/-
     BEHIND_BALL_GAP   = 10    // min px robot should be "behind" ball wrt goal
 };
@@ -64,6 +64,7 @@ static inline double deg_wrap(double d){
 
 static bool is_facing_ball(struct RoboAI *ai) {
     double e = compute_angle_error_to_ball(ai);
+    fprintf(stderr, "Angle error to ball: %.2f deg\n", e);
     return !isnan(e) && fabs(e) <= FACE_THRESH_DEG;
 }
 
@@ -889,11 +890,23 @@ static void penalty_mode(struct RoboAI *ai, struct blob *blobs) {
   // now only consider the main flow
   switch (state) {
     case ST_PENALTY_ROTATE_TO_BALL:
-      rotate_to_blob(ai);
-      if (is_facing_ball(ai)) {
-        ai->st.state = ST_PENALTY_MOVE_TO_BALL;
+      // if (!is_facing_ball(ai)) {
+      //   fprintf(stderr, "Rotating to face ball in PENALTY mode\n");
+      //   rotate_to_blob(ai);
+      // } else {
+      //   fprintf(stderr, "Facing ball achieved in PENALTY mode\n");
+      //   ai->st.state = ST_PENALTY_DONE;
+      //   BT_all_stop(0);
+      // }
+
+      // test moving to ball and stop when close
+      // assume already rotated to face ball
+      // print the distance to ball
+      fprintf(stderr, "Distance to ball: %f\n", compute_distance_error(ai, 40.0, NULL, NULL));
+      if (is_close_to_ball(ai)) {
+        ai->st.state = ST_PENALTY_DONE;
+        break;
       }
-      break;
     case ST_PENALTY_MOVE_TO_BALL:
       move_to_blob(ai);
       if (!is_facing_ball(ai)) {
@@ -1057,10 +1070,11 @@ void quick_face_to_ball(struct RoboAI *ai)
     if (fabs(ang_err_deg) < 10.0) return; 
 
     double target_deg = curr_deg + ang_err_deg;
-    const double THRESH = 10.0;
-    const double SPEED = 30.0;
+    const double THRESH = ALIGN_THRESH_DEG;
+    const double SPEED = 12.0;
 
     // blocking turn to target using gyro
+    int rotate_flag = 0;
     while (1)
     {
         BT_read_gyro(GYRO_PORT, 0, &gyro_angle, &gyro_rate);
@@ -1071,14 +1085,24 @@ void quick_face_to_ball(struct RoboAI *ai)
 
         if (fabs(err) < THRESH)
         {
-            BT_all_stop(0);
+            fprintf(stderr, "quick_face_to_ball: aligned to ball within %.2f degrees\n", THRESH);
+            int BT_motor_port_stop(char port_ids, int brake_mode);	
+            BT_motor_port_stop(LEFT_MOTOR, 1);
+            BT_motor_port_stop(RIGHT_MOTOR, 1);
             break;
         }
-        if (err > 0)
+        if (err > 0 && !rotate_flag)
+        {
+            rotate_flag = 1;
             BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(-SPEED*1.1), (char)(SPEED));  // turn right
-        else
+            fprintf(stderr, "quick_face_to_ball: turning right with angle %.2f and target angle %.2f\n", curr_deg, target_deg);
+        }
+        else if (err < 0 && !rotate_flag)
+        {
+            rotate_flag = 1;
             BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(SPEED*1.1), (char)(-SPEED));  // turn left
-
+            fprintf(stderr, "quick_face_to_ball: turning left with angle %.2f and target angle %.2f\n", curr_deg, target_deg);
+        }
         usleep(10000); // 10ms
     }
     BT_all_stop(0);
