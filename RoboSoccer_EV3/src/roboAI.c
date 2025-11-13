@@ -894,23 +894,16 @@ static void penalty_mode(struct RoboAI *ai, double stored_smx, double stored_smy
   // now only consider the main flow
   switch (state) {
     case ST_PENALTY_ROTATE_TO_BALL:
-      // if (!is_facing_ball(ai)) {
-      //   fprintf(stderr, "Rotating to face ball in PENALTY mode\n");
-      //   rotate_to_blob(ai);
-      // } else {
-      //   fprintf(stderr, "Facing ball achieved in PENALTY mode\n");
-      //   ai->st.state = ST_PENALTY_DONE;
-      //   BT_all_stop(0);
-      // }
-
-      // test moving to ball and stop when close
-      // assume already rotated to face ball
-      // print the distance to ball
-      fprintf(stderr, "Distance to ball: %f\n", compute_distance_error(ai, 40.0, NULL, NULL));
-      if (is_close_to_ball(ai)) {
+      if (!is_facing_ball(ai, stored_smx, stored_smy)) {
+        fprintf(stderr, "Rotating to face ball in PENALTY mode\n");
+        rotate_to_blob(ai, stored_smx, stored_smy);
+      } else {
+        fprintf(stderr, "Facing ball achieved in PENALTY mode\n");
         ai->st.state = ST_PENALTY_DONE;
-        break;
+        BT_all_stop(0);
       }
+      break;
+
     case ST_PENALTY_MOVE_TO_BALL:
       move_to_blob(ai, stored_smx, stored_smy);
       if (!is_facing_ball(ai, stored_smx, stored_smy)) {
@@ -989,11 +982,12 @@ void align_to_goal_with_ball(struct RoboAI *ai, double smx, double smy) {
 // blocking
 void kick_ball(struct RoboAI *ai)
 {
-    // temporary simple kick logic - drive forward fast for 1 second
-    // replace with kick motor control if available
-    BT_drive(LEFT_MOTOR, RIGHT_MOTOR, 80, 80);
+    // use kick motor to kick
+    fprintf(stderr, "Kicking the ball!\n");
+    BT_timed_motor_port_start(KICK_MOTOR, 100, 100, 200, 100);
     sleep(1);
-    BT_all_stop(0);
+    fprintf(stderr, "Resetting kick motor\n");
+    BT_timed_motor_port_start(KICK_MOTOR, -50, 100, 200, 100);
 }
 
 // TODOO: need functions to check status (i.e. facing ball, close to ball, aligned to goal)
@@ -1022,11 +1016,11 @@ double compute_angle_error_to_ball(struct RoboAI *ai, double smx, double smy)
     double hdy = ai->st.sdy;
   // use motion vector to disambiguate heading direction
   // if dot product < 0, reverse heading direction
-    double dot = hdx * smx + hdy * smy; 
-    if (dot < 0) {
-        hdx = -hdx;
-        hdy = -hdy;
-    }
+    // double dot = hdx * smx + hdy * smy; 
+    // if (dot < 0) {
+    //     hdx = -hdx;
+    //     hdy = -hdy;
+    // }
 
     double ang_bot = atan2(ai->st.sdy, ai->st.sdx);
 
@@ -1037,6 +1031,8 @@ double compute_angle_error_to_ball(struct RoboAI *ai, double smx, double smy)
     while (ang_err < -M_PI) ang_err += 2*M_PI;
     // convert to degrees
     double ang_err_deg = ang_err * (180.0 / M_PI);
+
+    fprintf(stderr, "compute_angle_error_to_ball: angle error %.2f degrees with motion vector (%.2f, %.2f)\n", ang_err_deg, smx, smy);
     return ang_err_deg;
 }
 
@@ -1087,7 +1083,8 @@ void quick_face_to_ball(struct RoboAI *ai, double smx, double smy)
     double target_deg = curr_deg + ang_err_deg;
     const double THRESH = ALIGN_THRESH_DEG;
     const double SPEED = 12.0;
-
+    fprintf(stderr, "quick_face_to_ball: current angle %.2f, target angle %.2f, angle error %.2f\n",
+            curr_deg, target_deg, ang_err_deg);
     // blocking turn to target using gyro
     int rotate_flag = -1; // -1: not rotating, 0: to right , 1: to left
     while (1)
@@ -1105,16 +1102,19 @@ void quick_face_to_ball(struct RoboAI *ai, double smx, double smy)
             BT_motor_port_stop(RIGHT_MOTOR, 1);
             break;
         }
-        if (err > 0 && rotate_flag != 0)
+        // err > 0 -> BALL IS AT ITSELF RIGHT -> TURN RIGHT
+        // err < 0 -> BALL IS AT ITSELF LEFT  -> TURN LEFT
+        // TO DO: SOLOVE -180&180 CROSSING ISSUE
+        if (err > 0 && rotate_flag == -1)
         {
             rotate_flag = 0;
-            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(-SPEED*1.1), (char)(SPEED));  // turn right
+            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(SPEED*1.1), (char)(-SPEED));  // turn right
             fprintf(stderr, "quick_face_to_ball: turning right with angle %.2f and target angle %.2f\n", curr_deg, target_deg);
         }
-        else if (err < 0 && rotate_flag != 1)
+        else if (err < 0 && rotate_flag == -1)
         {
             rotate_flag = 1;
-            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(SPEED*1.1), (char)(-SPEED));  // turn left
+            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(-SPEED*1.1), (char)(SPEED));  // turn left
             fprintf(stderr, "quick_face_to_ball: turning left with angle %.2f and target angle %.2f\n", curr_deg, target_deg);
         }
         usleep(10000); // 10ms
