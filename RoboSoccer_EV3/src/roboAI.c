@@ -167,10 +167,10 @@ static void chase_mode(struct RoboAI *ai, struct blob *blobs);
 
 // Tuning knobs for penalty routine
 enum {
-    FACE_THRESH_DEG   = 8,    // tweak
-    ALIGN_THRESH_DEG  = 20,   // tweak
-    TARGET_BALL_DIST  = 100,   // pixels; tweak to your scale
-    CLOSE_BALL_SLACK  = 5,    // +/-
+    FACE_THRESH_DEG   = 15,    // tweak
+    ALIGN_THRESH_DEG  = 15,   // tweak
+    TARGET_BALL_DIST  = 105,   // pixels; tweak to your scale
+    CLOSE_BALL_SLACK  = 15,    // +/-
     BEHIND_BALL_GAP   = 10    // min px robot should be "behind" ball wrt goal
 };
 
@@ -190,6 +190,7 @@ static bool is_facing_ball(struct RoboAI *ai, double smx, double smy) {
 static bool is_close_to_ball(struct RoboAI *ai) {
     double de = 0, dd = 0;
     double d = compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd);
+    fprintf(stderr, "Distance to ball: %.2f px (err %.2f, d %.2f)\n", d, de, dd);
     return !isnan(d) && d <= (TARGET_BALL_DIST + CLOSE_BALL_SLACK);
 }
 
@@ -1009,23 +1010,39 @@ static void penalty_mode(struct RoboAI *ai, double stored_smx, double stored_smy
   fprintf(stderr, "In PENALTY mode, current state: %d\n", ai->st.state);
   int state = ai->st.state;
 
-  // denoise check for all blobs
-  struct blob *aiBlob[] = { ai->st.ball, ai->st.self, ai->st.opp };
-  struct BlobHistory *aiBlobHist[] = { &trackHist.ball, &trackHist.self, &trackHist.opp };
+  // // denoise check for all blobs
+  // struct blob *aiBlob[] = { ai->st.ball, ai->st.self, ai->st.opp };
+  // struct BlobHistory *aiBlobHist[] = { &trackHist.ball, &trackHist.self, &trackHist.opp };
 
 
-  for (int i = 0; i < 3; i++) {
-    struct blob* b = aiBlob[i];
-    struct BlobHistory* hist = aiBlobHist[i];
-    int blob_detected = (b != NULL);
+  // for (int i = 0; i < 3; i++) {
+  //   struct blob* b = aiBlob[i];
+  //   struct BlobHistory* hist = aiBlobHist[i];
+  //   int blob_detected = (b != NULL);
 
-    update_blob_history(hist, blob_detected, b->cx, b->cy, b->vx, b->vy, b->mx, b->my, b->dx, b->dy);
-    int valid = denoise_exp(hist, 0.3, &b->cx, &b->cy, &b->vx, &b->vy, &b->dx, &b->dy);
-    if (!valid) {
-      fprintf(stderr, "Lost track of a blob, back to 101\n");
-      ai->st.state = 101;
-    }
-  }
+  //   update_blob_history(hist, blob_detected, b->cx, b->cy, b->vx, b->vy, b->mx, b->my, b->dx, b->dy);
+  //   int valid = denoise_exp(hist, 0.3, &b->cx, &b->cy, &b->vx, &b->vy, &b->dx, &b->dy);
+  //   if (!valid) {
+  //     fprintf(stderr, "Lost track of a blob, back to 101\n");
+  //     ai->st.state = 101;
+  //   }
+  // }// denoise check for all blobs
+  // struct blob *aiBlob[] = { ai->st.ball, ai->st.self, ai->st.opp };
+  // struct BlobHistory *aiBlobHist[] = { &trackHist.ball, &trackHist.self, &trackHist.opp };
+
+
+  // for (int i = 0; i < 3; i++) {
+  //   struct blob* b = aiBlob[i];
+  //   struct BlobHistory* hist = aiBlobHist[i];
+  //   int blob_detected = (b != NULL);
+
+  //   update_blob_history(hist, blob_detected, b->cx, b->cy, b->vx, b->vy, b->mx, b->my, b->dx, b->dy);
+  //   int valid = denoise_exp(hist, 0.3, &b->cx, &b->cy, &b->vx, &b->vy, &b->dx, &b->dy);
+  //   if (!valid) {
+  //     fprintf(stderr, "Lost track of a blob, back to 101\n");
+  //     ai->st.state = 101;
+  //   }
+  // }
 
 
   // TODOO: add more transitions (lost track, reset, still moving etc)
@@ -1037,20 +1054,29 @@ static void penalty_mode(struct RoboAI *ai, double stored_smx, double stored_smy
         rotate_to_blob(ai, stored_smx, stored_smy);
       } else {
         fprintf(stderr, "Facing ball achieved in PENALTY mode\n");
-        ai->st.state = ST_PENALTY_DONE;
-        BT_all_stop(0);
+        ai->st.state = ST_PENALTY_MOVE_TO_BALL;
+        BT_motor_port_stop(LEFT_MOTOR, 0);
+        BT_motor_port_stop(RIGHT_MOTOR, 0);
       }
       break;
 
     case ST_PENALTY_MOVE_TO_BALL:
-      move_to_blob(ai, stored_smx, stored_smy);
       if (!is_facing_ball(ai, stored_smx, stored_smy)) {
+        fprintf(stderr, "state102: Rotating to face ball in PENALTY mode with angle difference: %.2f\n", compute_angle_error_to_ball(ai, stored_smx, stored_smy));
         ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
-        BT_all_stop(0);
+        BT_motor_port_stop(LEFT_MOTOR, 0);
+        BT_motor_port_stop(RIGHT_MOTOR, 0);
         break;
-      } else if (is_close_to_ball(ai)) {
-        ai->st.state = ST_PENALTY_ALIGN_TO_GOAL;
-        BT_all_stop(0);
+      } 
+      else if (!is_close_to_ball(ai)) {
+       // fprintf(stderr, "Moving to ball in PENALTY mode\n");
+        move_to_blob(ai, stored_smx, stored_smy);
+      }
+      else if (is_close_to_ball(ai)) {
+        ai->st.state = ST_PENALTY_DONE;
+       // fprintf(stderr, "change to Aligning to goal in PENALTY mode with distance difference: %.2f\n", compute_distance_error(ai));
+        BT_motor_port_stop(LEFT_MOTOR, 0);
+        BT_motor_port_stop(RIGHT_MOTOR, 0);
       }
       break;
     case ST_PENALTY_ALIGN_TO_GOAL:
@@ -1277,13 +1303,13 @@ void approach_to_ball(struct RoboAI *ai, double smx, double smy)
     if (!ai || !ai->st.self || !ai->st.ball) return;
 
     // angle error to ball as P term
-    double ang_err = compute_angle_error_to_ball(ai, smx, smy);
-    if (isnan(ang_err)) return;
+ //   double ang_err = compute_angle_error_to_ball(ai, smx, smy);
+ //   if (isnan(ang_err)) return;
 
     // rate of angle change from gyro as D term
-    int g_angle = 0, g_rate = 0;
-    BT_read_gyro(GYRO_PORT, 0, &g_angle, &g_rate);
-    double gyro_rate_scaled = ((double)g_rate) / 60.0; // scale 值要调，不确定要不要
+  //  int g_angle = 0, g_rate = 0;
+  //  BT_read_gyro(GYRO_PORT, 0, &g_angle, &g_rate);
+  //  double gyro_rate_scaled = ((double)g_rate) / 60.0; // scale 值要调，不确定要不要
 
     // // use static variable to store previous angle error for D term image自身的d项，有需要再加吧
     // static double prev_ang_err = 0.0;
@@ -1291,29 +1317,30 @@ void approach_to_ball(struct RoboAI *ai, double smx, double smy)
     // prev_ang_err = ang_err;
 
     // turn PD control
-    const double Kp_turn = 1.6; // 要调参
-    const double Kd_g = 7.5;// 要调参
+  //  const double Kp_turn = 1.6; // 要调参
+  //  const double Kd_g = 7.5;// 要调参
    // const double Kd_v = 0.0;// 要调参
-    double turn = Kp_turn * ang_err
-                - Kd_g * gyro_rate_scaled;
+   // double turn = Kp_turn * ang_err
+     //           - Kd_g * gyro_rate_scaled;
                // + Kd_v * d_err_vis; // pd
     // turn limits
-    if (turn > 12) turn = 12;
-    if (turn < -12) turn = -12;
+   // if (turn > 12) turn = 12;
+   // if (turn < -12) turn = -12;
 
+   double turn = 0.0; // 先不转了，直接走直线接近球
     // distance to ball
-    double target_dist = 40.0;  // target distance to ball // 要调参
+    double target_dist = TARGET_BALL_DIST;  // target distance to ball // 要调参
     double dist_err = 0.0, d_dist = 0.0;
     double dist = compute_distance_error(ai, target_dist, &dist_err, &d_dist);
 
     // forward PD control --> 接近时减速
-    const double Kp_fwd = 0.3; // 要调参
-    const double Kd_fwd = 1.2;// 要调参
+    const double Kp_fwd = 0.1; // 要调参
+    const double Kd_fwd = 0;// 要调参
     double forward_speed = Kp_fwd * dist_err - Kd_fwd * d_dist; // pd
 
     // speed limits
     if (forward_speed > 30) forward_speed = 30;
-    if (forward_speed < 15) forward_speed = 15;
+    if (forward_speed < 10) forward_speed = 10;
 
     // compute left/right motor speeds
     double left  = (forward_speed - turn) * 1.1; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
@@ -1329,6 +1356,9 @@ void approach_to_ball(struct RoboAI *ai, double smx, double smy)
         BT_all_stop(0);
         return;
     }
+
+    fprintf(stderr, "approach_to_ball: dist %.2f (err %.2f, d %.2f), fwd %.2f, turn %.2f, left %.2f, right %.2f\n",
+            dist, dist_err, d_dist, forward_speed, turn, left, right);
 
     BT_drive(LEFT_MOTOR, RIGHT_MOTOR, left, right);
 }
