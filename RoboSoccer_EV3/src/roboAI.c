@@ -190,7 +190,7 @@ static bool is_facing_target(struct RoboAI *ai, double smx, double smy, double t
     return !isnan(e) && fabs(e) <= FACE_THRESH_DEG;
 }
 
-static bool is_close_to_ball(struct RoboAI *ai) {
+static bool is_close_to_ball(struct RoboAI *ai, double ball_cx, double ball_cy) {
     double de = 0, dd = 0;
     double d = compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd);
     fprintf(stderr, "Distance to ball: %.2f px (err %.2f, d %.2f)\n", d, de, dd);
@@ -1099,7 +1099,7 @@ static void penalty_mode(struct RoboAI *ai, double stored_smx, double stored_smy
       } 
       else if (!is_close_to_target(ai, tgt_cx, tgt_cy)) {
        // fprintf(stderr, "Moving to target in PENALTY mode\n");
-        move_to_blob(ai, stored_smx, stored_smy);
+        move_to_blob(ai, stored_smx, stored_smy, tgt_cx, tgt_cy);
       }
       else if (is_close_to_target(ai, tgt_cx, tgt_cy)) {
         ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
@@ -1138,11 +1138,11 @@ static void penalty_mode(struct RoboAI *ai, double stored_smx, double stored_smy
         BT_motor_port_stop(RIGHT_MOTOR, 0);
         break;
       } 
-      else if (!is_close_to_ball(ai)) {
+      else if (!is_close_to_ball(ai, b_cx, b_cy)) {
        // fprintf(stderr, "Moving to ball in PENALTY mode\n");
-        move_to_blob(ai, stored_smx, stored_smy);
+        move_to_blob(ai, stored_smx, stored_smy, b_cx, b_cy);
       }
-      else if (is_close_to_ball(ai)) {
+      else if (is_close_to_ball(ai, b_cx, b_cy)) {
         ai->st.state = ST_PENALTY_KICK_BALL;
        // fprintf(stderr, "change to Aligning to goal in PENALTY mode with distance difference: %.2f\n", compute_distance_error(ai));
         BT_motor_port_stop(LEFT_MOTOR, 0);
@@ -1186,9 +1186,9 @@ void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, 
   // nothing else needed here
 }
 
-void move_to_blob(struct RoboAI *ai, double smx, double smy) {
+void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, double target_y) {
     // frame-driven PD approach; stops itself when close
-    approach_to_ball(ai, smx, smy);
+    approach_to_target(ai, smx, smy, target_x, target_y);
 }
 
 // void align_to_goal_with_ball(struct RoboAI *ai, double smx, double smy) {
@@ -1357,16 +1357,16 @@ double compute_angle_error_to_target(struct RoboAI *ai, double smx, double smy, 
 double compute_distance_error(struct RoboAI *ai,
                               double target_dist,
                               double *dist_err,
-                              double *d_dist)
+                              double *d_ball_dist, double target_cx, double target_cy)
 {
     if (!ai || !ai->st.self || !ai->st.ball) return NAN;
 
     // current distance 
-    double dx = ai->st.ball->cx - ai->st.self->cx;
-    double dy = ai->st.ball->cy - ai->st.self->cy;
+    double dx = target_cx - ai->st.self->cx;
+    double dy = target_cy - ai->st.self->cy;
     double dist = hypot(dx, dy);
 
-    // distance change rate
+    // distance change rate to ball
     if (d_dist) {
         double vx_rel = ai->st.bvx - ai->st.svx;
         double vy_rel = ai->st.bvy - ai->st.svy;
@@ -1457,7 +1457,7 @@ void quick_face_to_target(struct RoboAI *ai, double smx, double smy, double targ
 // 先init gryo sensor 在第一次调用前
 // non- blocking & frame - driven
 // 根据机器人和球的位置动态调整左右motor，是机器人可以更精准地接近球
-void approach_to_ball(struct RoboAI *ai, double smx, double smy)
+void approach_to_target(struct RoboAI *ai, double smx, double smy, double target_x, double target_y)
 {
     if (!ai || !ai->st.self || !ai->st.ball) return;
 
@@ -1490,7 +1490,7 @@ void approach_to_ball(struct RoboAI *ai, double smx, double smy)
     // distance to ball
     double target_dist = TARGET_BALL_DIST;  // target distance to ball // 要调参
     double dist_err = 0.0, d_dist = 0.0;
-    double dist = compute_distance_error(ai, target_dist, &dist_err, &d_dist);
+    double dist = compute_distance_error(ai, target_dist, &dist_err, &d_dist, target_x, target_y);
 
     // forward PD control --> 接近时减速
     const double Kp_fwd = 0.1; // 要调参
@@ -1516,7 +1516,7 @@ void approach_to_ball(struct RoboAI *ai, double smx, double smy)
         return;
     }
 
-    fprintf(stderr, "approach_to_ball: dist %.2f (err %.2f, d %.2f), fwd %.2f, turn %.2f, left %d, right %d\n",
+    fprintf(stderr, "approach_to_target: dist %.2f (err %.2f, d %.2f), fwd %.2f, turn %.2f, left %d, right %d\n",
             dist, dist_err, d_dist, forward_speed, turn, left, right);
 
     BT_drive(LEFT_MOTOR, RIGHT_MOTOR, left, right);
