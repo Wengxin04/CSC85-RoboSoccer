@@ -1200,11 +1200,17 @@ double compute_angle_error_to_ball(struct RoboAI *ai, double smx, double smy)
   // use motion vector to disambiguate heading direction
   // if dot product < 0, reverse heading direction
     double dot_heading_motion = hdx*smx + hdy*smy;  // 身体 vs 运动方向
-    double dot_motion_ball    = smx*bnx + smy*bny;  // 运动 vs 球方向
     // to do: fix 当机器人背对着球
-    if (dot_heading_motion < 0 && dot_motion_ball > 0) {
+    if (dot_heading_motion < 0) {
+        // 校准robot heading 方向， 根据motion vector
+        // 运动方向 == 头方向
         hdx = -hdx;
         hdy = -hdy;
+        double dot_motion_ball    = hdx*bnx + hdy*bny;  // robot头 vs 球方向
+        if (dot_motion_ball < 0) {
+            hdx = -hdx;
+            hdy = -hdy;
+        }
     }
 
     double ang_bot = atan2(hdy, hdx);
@@ -1217,7 +1223,7 @@ double compute_angle_error_to_ball(struct RoboAI *ai, double smx, double smy)
     // convert to degrees
     double ang_err_deg = ang_err * (180.0 / M_PI);
 
-    fprintf(stderr, "compute_angle_error_to_ball: angle error %.2f degrees with motion vector (%.2f, %.2f)\n", ang_err_deg, smx, smy);
+    fprintf(stderr, "compute_angle_error_to_ball: angle error %.2f degrees with motion vector (%.2f, %.2f) and corrected heading (%.2f, %.2f)\n", ang_err_deg, smx, smy, hdx, hd y);
     return ang_err_deg;
 }
 
