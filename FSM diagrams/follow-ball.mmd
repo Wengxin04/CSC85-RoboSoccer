@@ -9,10 +9,11 @@ stateDiagram
     state "Initial Setup (200)" as Init
     state "Go forward and rotate towards ball (201)" as GoForwardRotate
     %% state "Go straight towards ball (202)" as GoStraight
-    state "Swerve around obstacle (203)" as Swerve
-    state "At ball (204)" as AtBall
-    state "Lost track - move slightly (205)" as LostTrack
-    state "Border - angle away (206)" as Border
+    state "Swerve around obstacle (202)" as Swerve
+    %%state "At ball (204)" as AtBall
+    state "Lost track - move slightly (203)" as LostTrack
+    state "Border - angle away (204)" as Border
+    state "Kick (205)" as Kick
 
     %% Transitions
     [*] --> Init
@@ -22,6 +23,7 @@ stateDiagram
     GoForwardRotate --> GoForwardRotate : not at ball
     GoForwardRotate --> Swerve: obstacle detected in way
     GoForwardRotate --> Border: approaching border
+    GoForwardRotate --> Kick: at ball
     %%GoForwardRotate --> GoStraight : facing ball
     
     %%GoStraight --> LostTrack : lost track
@@ -33,9 +35,7 @@ stateDiagram
     Swerve --> Swerve : obstacle still detected
     Swerve --> GoForwardRotate : obstacle no more
     
-    AtBall --> LostTrack : lost track
-    AtBall --> AtBall: still at ball
-    AtBall --> GoForwardRotate: ball moved
+    Kick --> GoForwardRotate: ball moved
 
     LostTrack --> LostTrack: not found
     LostTrack --> GoForwardRotate: found
