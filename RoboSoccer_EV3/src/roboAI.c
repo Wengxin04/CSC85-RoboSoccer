@@ -1049,7 +1049,15 @@ static void penalty_mode(struct RoboAI *ai, double stored_smx, double stored_smy
     // now only consider the main flow
   switch (state) {
     case ST_PENALTY_ROTATE_TO_BALL:
-      if (!is_facing_ball(ai, stored_smx, stored_smy)) {
+    // use to test drive straight (left & right motors power)
+  //  ai->st.state = ST_PENALTY_MOVE_TO_BALL; // redundant but explicit
+      // BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (int) 30 *1.4, 30); // ensure stopped before rotating
+      // sleep(10);
+      // BT_motor_port_stop(LEFT_MOTOR, 0);
+      // BT_motor_port_stop(RIGHT_MOTOR, 0);
+      // ai->st.state = ST_PENALTY_DONE;
+      // break;
+  if (!is_facing_ball(ai, stored_smx, stored_smy)) {
         fprintf(stderr, "Rotating to face ball in PENALTY mode\n");
         rotate_to_blob(ai, stored_smx, stored_smy);
       } else {
@@ -1073,7 +1081,7 @@ static void penalty_mode(struct RoboAI *ai, double stored_smx, double stored_smy
         move_to_blob(ai, stored_smx, stored_smy);
       }
       else if (is_close_to_ball(ai)) {
-        ai->st.state = ST_PENALTY_DONE;
+        ai->st.state = ST_PENALTY_KICK_BALL;
        // fprintf(stderr, "change to Aligning to goal in PENALTY mode with distance difference: %.2f\n", compute_distance_error(ai));
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
@@ -1095,7 +1103,8 @@ static void penalty_mode(struct RoboAI *ai, double stored_smx, double stored_smy
       ai->st.state = ST_PENALTY_DONE;
       break;
     case ST_PENALTY_DONE:
-      BT_all_stop(0);
+      BT_motor_port_stop(LEFT_MOTOR, 0);
+      BT_motor_port_stop(RIGHT_MOTOR, 0);
       break;
     default:
       fprintf(stderr, "Unknown PENALTY state: %d\n", state);
@@ -1151,7 +1160,7 @@ void kick_ball(struct RoboAI *ai)
     BT_timed_motor_port_start(KICK_MOTOR, 100, 100, 200, 100);
     sleep(1);
     fprintf(stderr, "Resetting kick motor\n");
-    BT_timed_motor_port_start(KICK_MOTOR, -50, 100, 200, 100);
+    BT_timed_motor_port_start(KICK_MOTOR, -80, 100, 200, 100);
 }
 
 // TODOO: need functions to check status (i.e. facing ball, close to ball, aligned to goal)
@@ -1335,7 +1344,7 @@ void approach_to_ball(struct RoboAI *ai, double smx, double smy)
 
     // forward PD control --> 接近时减速
     const double Kp_fwd = 0.1; // 要调参
-    const double Kd_fwd = 0;// 要调参
+    const double Kd_fwd = 0.5;// 要调参
     double forward_speed = Kp_fwd * dist_err - Kd_fwd * d_dist; // pd
 
     // speed limits
@@ -1343,8 +1352,8 @@ void approach_to_ball(struct RoboAI *ai, double smx, double smy)
     if (forward_speed < 10) forward_speed = 10;
 
     // compute left/right motor speeds
-    double left  = (forward_speed - turn) * 1.1; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
-    double right = forward_speed + turn;
+    int left  = (forward_speed - turn) * 1.35; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
+    int right = forward_speed + turn;
 
     // deadband - ensure minimum speed to overcome friction
     if (fabs(left)  < 8) left  = (left>=0?8:-8);
