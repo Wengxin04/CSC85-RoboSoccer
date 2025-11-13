@@ -165,7 +165,7 @@ int denoise_exp(struct BlobHistory *h, double alpha,
 
 // declare static functions
 static void soccer_mode(struct RoboAI *ai, struct blob *blobs);
-static void penalty_mode(struct RoboAI *ai, double smx, double smy);
+static void penalty_mode(struct RoboAI *ai, double* smx, double* smy);
 static void chase_mode(struct RoboAI *ai, struct blob *blobs);
 
 // Tuning knobs for penalty routine
@@ -989,7 +989,7 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
       soccer_mode(ai, blobs);
   } else if (state >= 100 && state < 200) {
       // PENALTY mode
-      penalty_mode(ai, stored_smx, stored_smy);
+      penalty_mode(ai, &stored_smx, &stored_smy);
   } else if (state >= 200 && state < 300) {
       // CHASE mode
       chase_mode(ai, blobs);
@@ -1018,7 +1018,7 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
 }
 
 // TODOO: more detailed implementation
-static void penalty_mode(struct RoboAI *ai, double stored_smx, double stored_smy) {
+static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_smy) {
   fprintf(stderr, "In PENALTY mode, current state: %d\n", ai->st.state);
   int state = ai->st.state;
 
@@ -1074,14 +1074,46 @@ static void penalty_mode(struct RoboAI *ai, double stored_smx, double stored_smy
     {
       double target_cx, target_cy;
       compute_target_position(ai, &target_cx, &target_cy);
-      if (!is_facing_target(ai, stored_smx, stored_smy, target_cx, target_cy)) {
+      // print self position and target position
+      fprintf(stderr, "Self position: (%.2f, %.2f), Target position: (%.2f, %.2f)\n", ai->st.self->cx, ai->st.self->cy, target_cx, target_cy);
+
+      // compute angle difference for debugging
+      // compute_angle_error_to_target
+      double angle_error = compute_angle_error_to_target(ai, *stored_smx, *stored_smy, target_cx, target_cy);
+      fprintf(stderr, "Angle error to target: %.2f degrees\n", angle_error);
+
+      if (!is_facing_target(ai, *stored_smx, *stored_smy, target_cx, target_cy)) {
         fprintf(stderr, "Rotating to face target in PENALTY mode\n");
-        rotate_to_blob(ai, stored_smx, stored_smy, target_cx, target_cy);
+        rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
+        ai->st.state = ST_MOTION_UPDATE;
       } else {
         fprintf(stderr, "Facing target achieved in PENALTY mode\n");
-        ai->st.state = ST_PENALTY_MOVE_TO_TARGET;
+        ai->st.state = ST_PENALTY_DONE;
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
+      }
+      break;
+    }
+
+    case ST_MOTION_UPDATE:
+    {
+      static int motion_count = 0;
+      if (motion_count == 0){
+        motion_count++;
+        BT_timed_motor_port_start(LEFT_MOTOR, 22, 100, 500, 100);
+        BT_timed_motor_port_start(RIGHT_MOTOR, 20, 100, 500, 100);
+        usleep(1000*1000); // wait for motion to complete
+        ai->st.state = ST_MOTION_UPDATE;
+      }
+      if (motion_count >= 1){
+        motion_count = 0;
+        *stored_smx = ai->st.smx;
+        *stored_smy = ai->st.smy;
+         fprintf(stderr, "Updated stored motion vector to: (%.2f, %.2f)\n", *stored_smx, *stored_smy);
+        BT_timed_motor_port_start(LEFT_MOTOR, -22, 100, 500, 100);
+        BT_timed_motor_port_start(RIGHT_MOTOR, -20, 100, 500, 100);
+        usleep(1000*1000); // wait for motion to complete
+        ai->st.state = ST_PENALTY_ROTATE_TO_TARGET;
       }
       break;
     }
@@ -1091,7 +1123,7 @@ static void penalty_mode(struct RoboAI *ai, double stored_smx, double stored_smy
       // calculate target position
       double tgt_cx, tgt_cy;
       compute_target_position(ai, &tgt_cx, &tgt_cy);
-      if (!is_facing_target(ai, stored_smx, stored_smy, tgt_cx, tgt_cy)) {
+      if (!is_facing_target(ai, *stored_smx, *stored_smy, tgt_cx, tgt_cy)) {
         ai->st.state = ST_PENALTY_ROTATE_TO_TARGET;
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
@@ -1115,9 +1147,9 @@ static void penalty_mode(struct RoboAI *ai, double stored_smx, double stored_smy
     // ball position
     double ball_cx = ai->st.ball->cx;
     double ball_cy = ai->st.ball->cy;
-      if (!is_facing_target(ai, stored_smx, stored_smy, ball_cx, ball_cy)) {
+      if (!is_facing_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy)) {
         fprintf(stderr, "Rotating to face ball in PENALTY mode\n");
-        rotate_to_blob(ai, stored_smx, stored_smy, ai->st.ball->cx, ai->st.ball->cy);
+        rotate_to_blob(ai, *stored_smx, *stored_smy, ai->st.ball->cx, ai->st.ball->cy);
       } else {
         fprintf(stderr, "Facing ball achieved in PENALTY mode\n");
         ai->st.state = ST_PENALTY_MOVE_TO_BALL;
@@ -1132,7 +1164,7 @@ static void penalty_mode(struct RoboAI *ai, double stored_smx, double stored_smy
       // ball position
       double b_cx = ai->st.ball->cx;
       double b_cy = ai->st.ball->cy;
-      if (!is_facing_target(ai, stored_smx, stored_smy, b_cx, b_cy)) {
+      if (!is_facing_target(ai, *stored_smx, *stored_smy, b_cx, b_cy)) {
         ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
@@ -1270,35 +1302,42 @@ void compute_goal_center(struct RoboAI *ai, double *gcx, double *gcy)
 
 void compute_target_position(struct RoboAI *ai, double *target_cx, double *target_cy)
 {
-    if (!ai || !ai->st.self || !ai->st.ball || !target_cx || !target_cy) return;
+  // use self's x and ball's y as target for simplicity
+  if (!ai || !ai->st.self || !ai->st.ball || !target_cx || !target_cy) return;
+  *target_cx = ai->st.self->cx;
+  *target_cy = ai->st.ball->cy;
 
-    double gcx , gcy;
-    compute_goal_center(ai, &gcx, &gcy);
 
-    double bx = ai->st.ball->cx;
-    double by = ai->st.ball->cy;
-    double sx = ai->st.self->cx;
-    double sy = ai->st.self->cy;
+  // previous complex version commented out (use goal position)
+    // if (!ai || !ai->st.self || !ai->st.ball || !target_cx || !target_cy) return;
 
-    // line from ball to goal center: (bx, by) to (gcx, gcy)
-    // parametric form: x = bx + t*(gcx - bx), y = by + t*(gcy - by)
-    // we want to find t such that the point is on the line from self to ball
-    // line from self to ball: (sx, sy) to (bx, by)
-    // parametric form: x = sx + u*(bx - sx), y = sy + u*(by - sy)
+    // double gcx , gcy;
+    // compute_goal_center(ai, &gcx, &gcy);
 
-    // solve for intersection
-    double denom = (gcx - bx)*(by - sy) - (gcy - by)*(bx - sx);
-    if (fabs(denom) < 1e-6) {
-        // lines are parallel; just set target to ball position
-        *target_cx = bx;
-        *target_cy = by;
-        return;
-    }
+    // double bx = ai->st.ball->cx;
+    // double by = ai->st.ball->cy;
+    // double sx = ai->st.self->cx;
+    // double sy = ai->st.self->cy;
 
-    double t = ((sx - bx)*(by - sy) - (sy - by)*(bx - sx)) / denom;
+    // // line from ball to goal center: (bx, by) to (gcx, gcy)
+    // // parametric form: x = bx + t*(gcx - bx), y = by + t*(gcy - by)
+    // // we want to find t such that the point is on the line from self to ball
+    // // line from self to ball: (sx, sy) to (bx, by)
+    // // parametric form: x = sx + u*(bx - sx), y = sy + u*(by - sy)
 
-    *target_cx = bx + t * (gcx - bx);
-    *target_cy = by + t * (gcy - by);
+    // // solve for intersection
+    // double denom = (gcx - bx)*(by - sy) - (gcy - by)*(bx - sx);
+    // if (fabs(denom) < 1e-6) {
+    //     // lines are parallel; just set target to ball position
+    //     *target_cx = bx;
+    //     *target_cy = by;
+    //     return;
+    // }
+
+    // double t = ((sx - bx)*(by - sy) - (sy - by)*(bx - sx)) / denom;
+
+    // *target_cx = bx + t * (gcx - bx);
+    // *target_cy = by + t * (gcy - by);
 }
 
 // 这个用作计算机器人当前朝向和球的角度差的helper func
