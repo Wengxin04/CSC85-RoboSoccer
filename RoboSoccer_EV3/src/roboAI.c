@@ -1153,8 +1153,8 @@ double compute_angle_error_to_ball(struct RoboAI *ai, double smx, double smy)
     // normalize ball direction vector
     double bn = sqrt(dx*dx + dy*dy);
     if (bn < 1e-3) return NAN;
-    double bnx = bx / bn;
-    double bny = by / bn;
+    double bnx = dx / bn;
+    double bny = dy / bn;
 
     double hdx = ai->st.sdx;
     double hdy = ai->st.sdy;
