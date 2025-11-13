@@ -48,6 +48,8 @@
 #define ST_PENALTY_KICK_BALL 104      // Kick the ball
 #define ST_PENALTY_DONE 199           // Penalty kick done
 
+#define ST_WAIT 110
+
 struct AI_data{
 	// This data structure is used to hold all data relevant to the state of the AI.
 	// This includes, of course, the current state, as well as the status of
