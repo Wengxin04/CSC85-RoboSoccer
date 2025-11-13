@@ -1072,6 +1072,9 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       
       // calculate target position
     {
+      ai->st.state = ST_PENALTY_ROTATE_TO_BALL; // remain in this state until facing target
+      break;
+      
       double target_cx, target_cy;
       compute_target_position(ai, &target_cx, &target_cy);
       // print self position and target position
@@ -1085,17 +1088,17 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       if (!is_facing_target(ai, *stored_smx, *stored_smy, target_cx, target_cy)) {
         fprintf(stderr, "Rotating to face target in PENALTY mode\n");
         rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
-        ai->st.state = ST_MOTION_UPDATE;
+        ai->st.state = ST_MOTION_UPDATE1;
       } else {
         fprintf(stderr, "Facing target achieved in PENALTY mode\n");
-        ai->st.state = ST_PENALTY_DONE;
+        ai->st.state = ST_PENALTY_MOVE_TO_TARGET;
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
       }
       break;
     }
 
-    case ST_MOTION_UPDATE:
+    case ST_MOTION_UPDATE1:
     {
       static int motion_count = 0;
       if (motion_count == 0){
@@ -1103,7 +1106,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
         BT_timed_motor_port_start(LEFT_MOTOR, 22, 100, 500, 100);
         BT_timed_motor_port_start(RIGHT_MOTOR, 20, 100, 500, 100);
         usleep(1000*1000); // wait for motion to complete
-        ai->st.state = ST_MOTION_UPDATE;
+        ai->st.state = ST_MOTION_UPDATE1;
       }
       if (motion_count >= 1){
         motion_count = 0;
@@ -1114,6 +1117,34 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
         BT_timed_motor_port_start(RIGHT_MOTOR, -20, 100, 500, 100);
         usleep(1000*1000); // wait for motion to complete
         ai->st.state = ST_PENALTY_ROTATE_TO_TARGET;
+      }
+      break;
+    }
+
+    case ST_MOTION_UPDATE2:
+    {
+      static int motion_count = 0;
+      if (motion_count == 0){
+        motion_count++;
+        BT_timed_motor_port_start(LEFT_MOTOR, 22, 100, 500, 100);
+        BT_timed_motor_port_start(RIGHT_MOTOR, 20, 100, 500, 100);
+        usleep(1000*1000); // wait for motion to complete
+        ai->st.state = ST_MOTION_UPDATE2;
+      }
+      if (motion_count >= 1){
+        motion_count = 0;
+        *stored_smx = ai->st.smx;
+        *stored_smy = ai->st.smy;
+         fprintf(stderr, "Updated stored motion vector to: (%.2f, %.2f)\n", *stored_smx, *stored_smy);
+        BT_timed_motor_port_start(LEFT_MOTOR, -22, 100, 800, 100);
+        BT_timed_motor_port_start(RIGHT_MOTOR, -20, 100, 800, 100);
+        usleep(1000*1000); // wait for motion to complete
+        if (*stored_smx == 0 && *stored_smy == 0) {
+          fprintf(stderr, "Warning: stored motion vector is zero, cannot proceed!\n");
+          ai->st.state = ST_MOTION_UPDATE2;
+        }else{
+          ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
+        }
       }
       break;
     }
@@ -1150,9 +1181,10 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       if (!is_facing_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy)) {
         fprintf(stderr, "Rotating to face ball in PENALTY mode\n");
         rotate_to_blob(ai, *stored_smx, *stored_smy, ai->st.ball->cx, ai->st.ball->cy);
+        ai->st.state = ST_MOTION_UPDATE2;
       } else {
         fprintf(stderr, "Facing ball achieved in PENALTY mode\n");
-        ai->st.state = ST_PENALTY_MOVE_TO_BALL;
+        ai->st.state = ST_PENALTY_DONE;
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
       }
@@ -1363,18 +1395,24 @@ double compute_angle_error_to_target(struct RoboAI *ai, double smx, double smy, 
   // use motion vector to disambiguate heading direction
   // if dot product < 0, reverse heading direction
     double dot_heading_motion = hdx*smx + hdy*smy;  // 身体 vs 运动方向
+    fprintf(stderr, "compute_angle_error_to_target: direction vectors: heading (%.2f, %.2f), motion (%.2f, %.2f), dot %.2f and target(%.2f, %.2f) and target dot %.2f\n",
+            hdx, hdy, smx, smy, dot_heading_motion, bnx, bny, hdx*bnx + hdy*bny);
     // to do: fix 当机器人背对着球
     if (dot_heading_motion < 0) {
         // 校准robot heading 方向， 根据motion vector
         // 运动方向 == 头方向
         hdx = -hdx;
         hdy = -hdy;
-        double dot_motion_ball    = hdx*bnx + hdy*bny;  // robot头 vs 球方向
+        fprintf(stderr, "compute_angle_error_to_target: correcting heading direction based on motion vector\n");
+      
+    }
+
+      double dot_motion_ball    = hdx*bnx + hdy*bny;  // robot头 vs 球方向
         if (dot_motion_ball < 0) {
+        fprintf(stderr, "compute_angle_error_to_target: correcting heading direction based on target direction\n");
             hdx = -hdx;
             hdy = -hdy;
         }
-    }
 
     double ang_bot = atan2(hdy, hdx);
 
