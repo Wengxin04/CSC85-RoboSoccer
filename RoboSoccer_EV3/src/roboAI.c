@@ -29,7 +29,7 @@
 ***************************************************************************/
 
 #include "roboAI.h"			// <--- Look at this header file!
-
+#include <unistd.h>
 #include <math.h>
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -1157,14 +1157,14 @@ void kick_ball(struct RoboAI *ai)
 {
     // use kick motor to kick
     fprintf(stderr, "Kicking the ball!\n");
-    BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 500, 100);
-    BT_timed_motor_port_start(LEFT_MOTOR, 100, 100, 500, 100);
-    msleep(200);
+    BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 1000, 100);
+    BT_timed_motor_port_start(LEFT_MOTOR, 100, 100, 1000, 100);
+    usleep(200*1000);
     BT_timed_motor_port_start(KICK_MOTOR, 100, 100, 200, 100);
-    msleep(800);
+    usleep(800*1000);
     fprintf(stderr, "Resetting kick motor\n");
     BT_timed_motor_port_start(KICK_MOTOR, -80, 100, 200, 100);
-    msleep(500);
+    usleep(500*1000);
 }
 
 // TODOO: need functions to check status (i.e. facing ball, close to ball, aligned to goal)
@@ -1255,12 +1255,12 @@ double compute_distance_error(struct RoboAI *ai,
     if (dist_err) *dist_err = dist - target_dist;  // distance error to target
 
     // to do: check whether d_dist  works as expected
-    fprintf(stderr, "compute_distance_error: current distance %.2f, distance error %.2f, distance change rate %.2f \n",
+    fprintf(stderr, "compute_distance_error1: current distance %.2f, distance error %.2f, distance change rate %.2f \n",
             dist,
             dist_err ? *dist_err : NAN,
             d_dist ? *d_dist : NAN);
 
-    fprintf(stderr,"compute_distance_error: check cx cy: ball (%.2f, %.2f) self (%.2f, %.2f) and old self old cx cy (%.2f, %.2f)\n",
+    fprintf(stderr,"compute_distance_error2: check cx cy: ball (%.2f, %.2f) self (%.2f, %.2f) and old self old cx cy (%.2f, %.2f)\n",
             ai->st.ball->cx, ai->st.ball->cy,
             ai->st.self->cx, ai->st.self->cy,
             ai->st.old_scx, ai->st.old_scy);
@@ -1314,7 +1314,7 @@ void quick_face_to_ball(struct RoboAI *ai, double smx, double smy)
         {
             rotate_flag = 0;
             BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(SPEED*1.1), (char)(-SPEED));  // turn right
-            fprintf(stderr, "quick_face_to_ball: turning right with angle %.2f and target angle %.2f\n", curr_deg, target_deg);
+           fprintf(stderr, "quick_face_to_ball: turning right with angle %.2f and target angle %.2f\n", curr_deg, target_deg);
         }
         else if (err < 0 && rotate_flag == -1)
         {
@@ -1369,7 +1369,7 @@ void approach_to_ball(struct RoboAI *ai, double smx, double smy)
 
     // forward PD control --> 接近时减速
     const double Kp_fwd = 0.1; // 要调参
-    const double Kd_fwd = 0.1;// 要调参
+    const double Kd_fwd = 0;// 要调参
     double forward_speed = Kp_fwd * dist_err - Kd_fwd * d_dist; // pd
 
     // speed limits
@@ -1377,8 +1377,8 @@ void approach_to_ball(struct RoboAI *ai, double smx, double smy)
     if (forward_speed < 10) forward_speed = 10;
 
     // compute left/right motor speeds
-    int left  = (forward_speed - turn) * 1.35; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
-    int right = forward_speed + turn;
+    int left  = (forward_speed - turn) * 1.2; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
+    int right = (forward_speed + turn) * 0.9;
 
     // deadband - ensure minimum speed to overcome friction
     if (fabs(left)  < 8) left  = (left>=0?8:-8);
@@ -1391,7 +1391,7 @@ void approach_to_ball(struct RoboAI *ai, double smx, double smy)
         return;
     }
 
-    fprintf(stderr, "approach_to_ball: dist %.2f (err %.2f, d %.2f), fwd %.2f, turn %.2f, left %.2f, right %.2f\n",
+    fprintf(stderr, "approach_to_ball: dist %.2f (err %.2f, d %.2f), fwd %.2f, turn %.2f, left %d, right %d\n",
             dist, dist_err, d_dist, forward_speed, turn, left, right);
 
     BT_drive(LEFT_MOTOR, RIGHT_MOTOR, left, right);
