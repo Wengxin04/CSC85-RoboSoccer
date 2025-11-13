@@ -1157,10 +1157,14 @@ void kick_ball(struct RoboAI *ai)
 {
     // use kick motor to kick
     fprintf(stderr, "Kicking the ball!\n");
+    BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 500, 100);
+    BT_timed_motor_port_start(LEFT_MOTOR, 100, 100, 500, 100);
+    msleep(200);
     BT_timed_motor_port_start(KICK_MOTOR, 100, 100, 200, 100);
-    sleep(1);
+    msleep(800);
     fprintf(stderr, "Resetting kick motor\n");
     BT_timed_motor_port_start(KICK_MOTOR, -80, 100, 200, 100);
+    msleep(500);
 }
 
 // TODOO: need functions to check status (i.e. facing ball, close to ball, aligned to goal)
