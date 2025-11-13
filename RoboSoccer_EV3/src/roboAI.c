@@ -912,7 +912,7 @@ static void penalty_mode(struct RoboAI *ai, double stored_smx, double stored_smy
         break;
       }
     case ST_PENALTY_MOVE_TO_BALL:
-      move_to_blob(ai);
+      move_to_blob(ai, stored_smx, stored_smy);
       if (!is_facing_ball(ai, stored_smx, stored_smy)) {
         ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
         BT_all_stop(0);
@@ -979,7 +979,7 @@ void align_to_goal_with_ball(struct RoboAI *ai, double smx, double smy) {
         double step = (ai->st.side == 0) ? +12.0 : -12.0; // tweak
         rotate_step_blocking(step);
         // Then take a tiny approach step to settle the arc
-        approach_to_ball(ai);
+        approach_to_ball(ai, smx, smy);
         return;
     }
 

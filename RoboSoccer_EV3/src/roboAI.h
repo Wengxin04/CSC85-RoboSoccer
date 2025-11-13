@@ -165,8 +165,8 @@ struct displayList *clearDP(struct displayList *head);
 
 // TOSEE (edit as needed):
 // basic, reusable soccer behaviours
-void rotate_to_blob(struct RoboAI *ai, struct blob *target_blob);
-void move_to_blob(struct RoboAI *ai, struct blob *target_blob);
+void rotate_to_blob(struct RoboAI *ai, double smx, double smy);
+void move_to_blob(struct RoboAI *ai, double smx, double smy);
 void align_to_goal_with_ball(struct RoboAI *ai, double smx, double smy);
 void kick_ball(struct RoboAI *ai);
 
