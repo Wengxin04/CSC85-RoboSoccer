@@ -1197,6 +1197,7 @@ double compute_angle_error_to_ball(struct RoboAI *ai, double smx, double smy)
   // if dot product < 0, reverse heading direction
     double dot_heading_motion = hdx*smx + hdy*smy;  // 身体 vs 运动方向
     double dot_motion_ball    = smx*bnx + smy*bny;  // 运动 vs 球方向
+    // to do: fix 当机器人背对着球
     if (dot_heading_motion < 0 && dot_motion_ball > 0) {
         hdx = -hdx;
         hdy = -hdy;
@@ -1231,14 +1232,28 @@ double compute_distance_error(struct RoboAI *ai,
     double dy = ai->st.ball->cy - ai->st.self->cy;
     double dist = hypot(dx, dy);
 
-    // prev distance
-    double old_dx = ai->st.old_bcx - ai->st.old_scx;
-    double old_dy = ai->st.old_bcy - ai->st.old_scy;
-    double old_dist = hypot(old_dx, old_dy);
+    // distance change rate
+    if (d_dist) {
+        double vx_rel = ai->st.bvx - ai->st.svx;
+        double vy_rel = ai->st.bvy - ai->st.svy;
+        double denom = dist > 1e-3 ? dist : 1e-3;
+        double rate = (dx * vx_rel + dy * vy_rel) / denom; 
+        *d_dist = -rate; // make positive = approaching
+    }
 
     // distance difference 
     if (dist_err) *dist_err = dist - target_dist;  // distance error to target
-    if (d_dist)   *d_dist   = old_dist - dist;  // distance change rate
+
+    // to do: check whether d_dist  works as expected
+    fprintf(stderr, "compute_distance_error: current distance %.2f, distance error %.2f, distance change rate %.2f \n",
+            dist,
+            dist_err ? *dist_err : NAN,
+            d_dist ? *d_dist : NAN);
+
+    fprintf(stderr,"compute_distance_error: check cx cy: ball (%.2f, %.2f) self (%.2f, %.2f) and old self old cx cy (%.2f, %.2f)\n",
+            ai->st.ball->cx, ai->st.ball->cy,
+            ai->st.self->cx, ai->st.self->cy,
+            ai->st.old_scx, ai->st.old_scy);
 
     return dist;
 }
@@ -1344,7 +1359,7 @@ void approach_to_ball(struct RoboAI *ai, double smx, double smy)
 
     // forward PD control --> 接近时减速
     const double Kp_fwd = 0.1; // 要调参
-    const double Kd_fwd = 0.5;// 要调参
+    const double Kd_fwd = 0.1;// 要调参
     double forward_speed = Kp_fwd * dist_err - Kd_fwd * d_dist; // pd
 
     // speed limits
@@ -1373,6 +1388,7 @@ void approach_to_ball(struct RoboAI *ai, double smx, double smy)
 }
 
 /// 使机器人面向对方球门
+// 校准机身位置！
 // blocking！
 void rotate_to_goal(struct RoboAI *ai)
 {
@@ -1385,6 +1401,8 @@ void rotate_to_goal(struct RoboAI *ai)
     double s_norm = sqrt(sdx*sdx + sdy*sdy);
     if (s_norm < 1e-3) return;
     sdx /= s_norm; sdy /= s_norm;
+
+    // adjust with motion vector to disambiguate heading direction
 
     // compute current field direction in degrees
     double curr_field_deg = atan2(sdy, sdx) * 180.0 / M_PI;
@@ -1400,10 +1418,12 @@ void rotate_to_goal(struct RoboAI *ai)
 
     // init gyro reading and use our computed angle diff
     int gyro_angle = 0, gyro_rate = 0;
-    BT_read_gyro(GYRO_PORT, 1, &gyro_angle, &gyro_rate);  // reset // 最好不要一直reset，在最开始reset// todo
+    BT_read_gyro(GYRO_PORT, 1, &gyro_angle, &gyro_rate);  // reset
     double gyro_start = (double)gyro_angle;
     double target_deg_gyro = gyro_start + delta_field;
 
+    // 如果要转，后退一点然后再转？
+    // 这个尽可能的原地旋转，要考虑球的位置！
     
     const double THRESH = 10.0;
     const double SPEED  = 30.0;
