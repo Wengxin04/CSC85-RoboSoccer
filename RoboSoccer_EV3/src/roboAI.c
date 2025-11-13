@@ -1167,6 +1167,8 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       else if (!is_close_to_target(ai, tgt_cx, tgt_cy)) {
        fprintf(stderr, "Moving to target in PENALTY mode\n");
         move_to_blob(ai, *stored_smx, *stored_smy, tgt_cx, tgt_cy, TARGET_TARGET_DIST);
+        *stored_smx = ai->st.smx;
+        *stored_smy = ai->st.smy;
       }
       else if (is_close_to_target(ai, tgt_cx, tgt_cy)) {
         ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
