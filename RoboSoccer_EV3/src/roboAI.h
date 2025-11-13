@@ -42,10 +42,11 @@
 // TOSEE:
 // Penalty kick mode state definitions (100-199)
 #define ST_PENALTY_INIT 100           // Initial state
-#define ST_PENALTY_ROTATE_TO_BALL 101 // Rotate to face the ball
-#define ST_PENALTY_MOVE_TO_BALL 102   // Move to the ball
-#define ST_PENALTY_ALIGN_TO_GOAL 103  // Align to face the goal
-#define ST_PENALTY_KICK_BALL 104      // Kick the ball
+#define ST_PENALTY_ROTATE_TO_TARGET 101 // Rotate to face the target
+#define ST_PENALTY_MOVE_TO_TARGET 102    // Move to the target
+#define ST_PENALTY_ROTATE_TO_BALL 103  // Rotate to face the ball
+#define ST_PENALTY_MOVE_TO_BALL 104   // Move to the ball
+#define ST_PENALTY_KICK_BALL 105      // Kick the ball
 #define ST_PENALTY_DONE 199           // Penalty kick done
 
 struct AI_data{

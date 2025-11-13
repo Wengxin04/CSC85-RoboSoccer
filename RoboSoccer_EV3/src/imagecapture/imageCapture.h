@@ -60,6 +60,8 @@
 
 static char version[] = "RoboSoccerEV3 V2.0.2025";
 
+extern double Mcorners[4][2];
+
 struct blob{
         int label;		        // Label in the labels image
         int blobId;		        // Unique blobId
