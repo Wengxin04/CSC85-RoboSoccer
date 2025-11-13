@@ -1018,17 +1018,24 @@ double compute_angle_error_to_ball(struct RoboAI *ai, double smx, double smy)
     double dy = ai->st.ball->cy - ai->st.self->cy;
     double ang_to_ball = atan2(dy, dx);
 
+    // normalize ball direction vector
+    double bn = sqrt(dx*dx + dy*dy);
+    if (bn < 1e-3) return NAN;
+    double bnx = bx / bn;
+    double bny = by / bn;
+
     double hdx = ai->st.sdx;
     double hdy = ai->st.sdy;
   // use motion vector to disambiguate heading direction
   // if dot product < 0, reverse heading direction
-    double dot = hdx * smx + hdy * smy; 
-    if (dot < 0) {
+    double dot_heading_motion = hdx*smx + hdy*smy;  // 身体 vs 运动方向
+    double dot_motion_ball    = smx*bnx + smy*bny;  // 运动 vs 球方向
+    if (dot_heading_motion < 0 && dot_motion_ball > 0) {
         hdx = -hdx;
         hdy = -hdy;
     }
 
-    double ang_bot = atan2(ai->st.sdy, ai->st.sdx);
+    double ang_bot = atan2(hdy, hdx);
 
     // angle error
     double ang_err = ang_to_ball - ang_bot;
