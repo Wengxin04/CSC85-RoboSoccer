@@ -41,9 +41,128 @@ extern int sx;              // Get access to the image size from the imageCaptur
 extern int sy;
 int laggy=0;
 
+////////////////////////////////////
+// Denosing data
+////////////////////////////////////
+#define HISTORY_LEN 5  // Number of frames to remember
+#define MAX_MISSED_FRAMES 5 // Number of consecutive missed frames before considering blob lost
+
+struct BlobHistory {
+    double cx[HISTORY_LEN];   // Center x history
+    double cy[HISTORY_LEN];   // Center y history
+    double vx[HISTORY_LEN];   // Velocity x history
+    double vy[HISTORY_LEN];   // Velocity y history
+    double dx[HISTORY_LEN];   // Direction x history
+    double dy[HISTORY_LEN];   // Direction y history
+    double mx[HISTORY_LEN];
+    double my[HISTORY_LEN];
+    int count;                // How many valid samples stored
+
+    // New fields:
+    int missed_frames;  // how many frames in a row blob not detected
+    int is_active;      // 1 if blob is currently tracked, 0 if considered lost
+};
+
+struct TrackingHistory {
+    struct BlobHistory ball;
+    struct BlobHistory self;
+    struct BlobHistory opp;
+};
+
+struct TrackingHistory trackHist = {0};
+
+void update_blob_history(struct BlobHistory *h,
+                         int blob_detected,
+                         double cx, double cy,
+                         double vx, double vy,
+                         double mx, double my,
+                         double dx, double dy) {
+
+    if (blob_detected) {
+        // Reset missed-frame counter
+        h->missed_frames = 0;
+        h->is_active = 1;
+
+        // Shift old history
+        for (int i = HISTORY_LEN - 1; i > 0; --i) {
+            h->cx[i] = h->cx[i-1];
+            h->cy[i] = h->cy[i-1];
+            h->vx[i] = h->vx[i-1];
+            h->vy[i] = h->vy[i-1];
+            h->mx[i] = h->mx[i-1];
+            h->my[i] = h->my[i-1];
+            h->dx[i] = h->dx[i-1];
+            h->dy[i] = h->dy[i-1];
+        }
+
+        // Store new sample
+        h->cx[0] = cx;
+        h->cy[0] = cy;
+
+        h->dx[0] = dx;
+        h->dy[0] = dy;
+
+        if (h->count < HISTORY_LEN)
+            h->count++;
+    }
+    else {
+        // Blob missing this frame
+        h->missed_frames++;
+        if (h->missed_frames > MAX_MISSED_FRAMES) {
+            h->is_active = 0;  // officially lost
+            h->count = 0;      // optionally clear history
+        }
+    }
+}
+
+// Exponential smoothing denoiser
+int denoise_exp(struct BlobHistory *h, double alpha,
+                 double *cx, double *cy,
+                 double *vx, double *vy,
+                 double *dx, double *dy) {
+    if (h->missed_frames > MAX_MISSED_FRAMES) {
+        // Blob officially lost
+        return 0;
+    }
+
+    double scx = 0, scy = 0, svx = 0, svy = 0, sdx = 0, sdy = 0;
+    int n = 0;
+
+    for (int i = h->count - 1; i >= 0; --i) {
+        double w = pow(alpha, n); // older frames get exponentially less weight
+        scx = w * h->cx[i] + (1 - w) * scx;
+        scy = w * h->cy[i] + (1 - w) * scy;
+
+        // Only smooth vx, vy if valid_motion was true when added
+        if (h->vx[i] != 0 || h->vy[i] != 0) {
+            svx = w * h->vx[i] + (1 - w) * svx;
+            svy = w * h->vy[i] + (1 - w) * svy;
+        }
+
+        sdx = w * h->dx[i] + (1 - w) * sdx;
+        sdy = w * h->dy[i] + (1 - w) * sdy;
+        n++;
+    }
+
+    printf("Noised: cx=%.2f, cy=%.2f, vx=%.2f, vy=%.2f, dx=%.2f, dy=%.2f\n",
+       *cx, *cy, *vx, *vy, *dx, *dy);
+    printf("Denoised: cx=%.2f, cy=%.2f, vx=%.2f, vy=%.2f, dx=%.2f, dy=%.2f\n",
+           scx, scy, svx, svy, sdx, sdy);
+
+    *cx = scx; *cy = scy;
+    *vx = svx; *vy = svy;
+    *dx = sdx; *dy = sdy;
+
+    return 1; // valid smoothed output
+}
+////////////////////////////////////
+// End of denoising data
+////////////////////////////////////
+
+
 // declare static functions
 static void soccer_mode(struct RoboAI *ai, struct blob *blobs);
-static void penalty_mode(struct RoboAI *ai, double smx, double smy);
+static void penalty_mode(struct RoboAI *ai, struct blob *blobs);
 static void chase_mode(struct RoboAI *ai, struct blob *blobs);
 
 // Tuning knobs for penalty routine
@@ -62,8 +181,8 @@ static inline double deg_wrap(double d){
     return d;
 }
 
-static bool is_facing_ball(struct RoboAI *ai, double smx, double smy) {
-    double e = compute_angle_error_to_ball(ai, smx, smy);
+static bool is_facing_ball(struct RoboAI *ai) {
+    double e = compute_angle_error_to_ball(ai);
     fprintf(stderr, "Angle error to ball: %.2f deg\n", e);
     return !isnan(e) && fabs(e) <= FACE_THRESH_DEG;
 }
@@ -846,9 +965,9 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
    state transitions and with calling the appropriate function based on what
    the bot is supposed to be doing.
   *****************************************************************************/
- fprintf(stderr,"Just trackin with state'!\n", ai->st.state);	// bot, opponent, and ball.
+  fprintf(stderr,"Just trackin with state: %d!\n", ai->st.state);	// bot, opponent, and ball.
   track_agents(ai,blobs);
-  
+
   // get current state and call appropriate function
   int state = ai->st.state;
 
@@ -890,8 +1009,27 @@ static void penalty_mode(struct RoboAI *ai, double stored_smx, double stored_smy
   fprintf(stderr, "In PENALTY mode, current state: %d\n", ai->st.state);
   int state = ai->st.state;
 
+  // denoise check for all blobs
+  struct blob *aiBlob[] = { ai->st.ball, ai->st.self, ai->st.opp };
+  struct BlobHistory *aiBlobHist[] = { &trackHist.ball, &trackHist.self, &trackHist.opp };
+
+
+  for (int i = 0; i < 3; i++) {
+    struct blob* b = aiBlob[i];
+    struct BlobHistory* hist = aiBlobHist[i];
+    int blob_detected = (b != NULL);
+
+    update_blob_history(hist, blob_detected, b->cx, b->cy, b->vx, b->vy, b->mx, b->my, b->dx, b->dy);
+    int valid = denoise_exp(hist, 0.3, &b->cx, &b->cy, &b->vx, &b->vy, &b->dx, &b->dy);
+    if (!valid) {
+      fprintf(stderr, "Lost track of a blob, back to 101\n");
+      ai->st.state = 101;
+    }
+  }
+
+
   // TODOO: add more transitions (lost track, reset, still moving etc)
-  // now only consider the main flow
+    // now only consider the main flow
   switch (state) {
     case ST_PENALTY_ROTATE_TO_BALL:
       if (!is_facing_ball(ai, stored_smx, stored_smy)) {
