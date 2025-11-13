@@ -172,7 +172,8 @@ static void chase_mode(struct RoboAI *ai, struct blob *blobs);
 enum {
     FACE_THRESH_DEG   = 15,    // tweak
     ALIGN_THRESH_DEG  = 15,   // tweak
-    TARGET_BALL_DIST  = 105,   // pixels; tweak to your scale
+    TARGET_BALL_DIST  = 100,   // pixels; tweak to your scale
+    TARGET_TARGET_DIST= 20,   // pixels; tweak to your scale
     CLOSE_BALL_SLACK  = 15,    // +/-
     BEHIND_BALL_GAP   = 10    // min px robot should be "behind" ball wrt goal
 };
@@ -192,7 +193,7 @@ static bool is_facing_target(struct RoboAI *ai, double smx, double smy, double t
 
 static bool is_close_to_ball(struct RoboAI *ai, double ball_cx, double ball_cy) {
     double de = 0, dd = 0;
-    double d = compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd);
+    double d = compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd, ball_cx, ball_cy);
     fprintf(stderr, "Distance to ball: %.2f px (err %.2f, d %.2f)\n", d, de, dd);
     return !isnan(d) && d <= (TARGET_BALL_DIST + CLOSE_BALL_SLACK);
 }
@@ -203,8 +204,9 @@ static bool is_close_to_target(struct RoboAI *ai, double target_cx, double targe
     double dy = target_cy - ai->st.self->cy;
     double dist = hypot(dx, dy);
     fprintf(stderr, "Distance to target: %.2f px\n", dist);
-    return dist <= CLOSE_BALL_SLACK;
+    return dist <= TARGET_TARGET_DIST;
 }
+
 
 // are we behind the ball and pointing so that a straight push sends the ball toward the opponent goal?
 static bool is_aligned_to_goal_for_shot(struct RoboAI *ai) {
@@ -1071,10 +1073,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       // break;
       
       // calculate target position
-    {
-      ai->st.state = ST_PENALTY_ROTATE_TO_BALL; // remain in this state until facing target
-      break;
-      
+    {      
       double target_cx, target_cy;
       compute_target_position(ai, &target_cx, &target_cy);
       // print self position and target position
@@ -1088,7 +1087,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       if (!is_facing_target(ai, *stored_smx, *stored_smy, target_cx, target_cy)) {
         fprintf(stderr, "Rotating to face target in PENALTY mode\n");
         rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
-        ai->st.state = ST_MOTION_UPDATE1;
+        // ai->st.state = ST_MOTION_UPDATE1;
       } else {
         fprintf(stderr, "Facing target achieved in PENALTY mode\n");
         ai->st.state = ST_PENALTY_MOVE_TO_TARGET;
@@ -1103,8 +1102,8 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       static int motion_count = 0;
       if (motion_count == 0){
         motion_count++;
-        BT_timed_motor_port_start(LEFT_MOTOR, 22, 100, 500, 100);
-        BT_timed_motor_port_start(RIGHT_MOTOR, 20, 100, 500, 100);
+        BT_timed_motor_port_start(LEFT_MOTOR, 22, 100, 1000, 100);
+        BT_timed_motor_port_start(RIGHT_MOTOR, 20, 100, 1000, 100);
         usleep(1000*1000); // wait for motion to complete
         ai->st.state = ST_MOTION_UPDATE1;
       }
@@ -1113,10 +1112,15 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
         *stored_smx = ai->st.smx;
         *stored_smy = ai->st.smy;
          fprintf(stderr, "Updated stored motion vector to: (%.2f, %.2f)\n", *stored_smx, *stored_smy);
-        BT_timed_motor_port_start(LEFT_MOTOR, -22, 100, 500, 100);
-        BT_timed_motor_port_start(RIGHT_MOTOR, -20, 100, 500, 100);
+        BT_timed_motor_port_start(LEFT_MOTOR, -22, 100, 1000, 100);
+        BT_timed_motor_port_start(RIGHT_MOTOR, -20, 100, 1000, 100);
         usleep(1000*1000); // wait for motion to complete
-        ai->st.state = ST_PENALTY_ROTATE_TO_TARGET;
+        if (*stored_smx == 0 && *stored_smy == 0) {
+          fprintf(stderr, "Warning: stored motion vector is zero, cannot proceed!\n");
+          ai->st.state = ST_MOTION_UPDATE1;
+        }else{
+        ai->st.state = ST_PENALTY_MOVE_TO_TARGET;
+        }
       }
       break;
     }
@@ -1143,7 +1147,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
           fprintf(stderr, "Warning: stored motion vector is zero, cannot proceed!\n");
           ai->st.state = ST_MOTION_UPDATE2;
         }else{
-          ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
+          ai->st.state = ST_PENALTY_MOVE_TO_BALL;
         }
       }
       break;
@@ -1161,12 +1165,14 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
         break;
       } 
       else if (!is_close_to_target(ai, tgt_cx, tgt_cy)) {
-       // fprintf(stderr, "Moving to target in PENALTY mode\n");
-        move_to_blob(ai, stored_smx, stored_smy, tgt_cx, tgt_cy);
+       fprintf(stderr, "Moving to target in PENALTY mode\n");
+        move_to_blob(ai, *stored_smx, *stored_smy, tgt_cx, tgt_cy, TARGET_TARGET_DIST);
       }
       else if (is_close_to_target(ai, tgt_cx, tgt_cy)) {
         ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
-       // fprintf(stderr, "change to Rotating to ball in PENALTY mode with distance difference: %.2f\n", compute_distance_error(ai));
+        double de = 0, dd = 0;
+      double d = compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd, tgt_cx, tgt_cy);
+        fprintf(stderr, "change to Rotating to ball in PENALTY mode with distance difference: %.2f\n", d);
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
       }
@@ -1181,10 +1187,10 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       if (!is_facing_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy)) {
         fprintf(stderr, "Rotating to face ball in PENALTY mode\n");
         rotate_to_blob(ai, *stored_smx, *stored_smy, ai->st.ball->cx, ai->st.ball->cy);
-        ai->st.state = ST_MOTION_UPDATE2;
+        // ai->st.state = ST_MOTION_UPDATE2;
       } else {
         fprintf(stderr, "Facing ball achieved in PENALTY mode\n");
-        ai->st.state = ST_PENALTY_DONE;
+        ai->st.state = ST_PENALTY_MOVE_TO_BALL;
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
       }
@@ -1204,7 +1210,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       } 
       else if (!is_close_to_ball(ai, b_cx, b_cy)) {
        // fprintf(stderr, "Moving to ball in PENALTY mode\n");
-        move_to_blob(ai, stored_smx, stored_smy, b_cx, b_cy);
+        move_to_blob(ai, *stored_smx, *stored_smy, b_cx, b_cy, TARGET_BALL_DIST);
       }
       else if (is_close_to_ball(ai, b_cx, b_cy)) {
         ai->st.state = ST_PENALTY_KICK_BALL;
@@ -1250,9 +1256,9 @@ void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, 
   // nothing else needed here
 }
 
-void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, double target_y) {
+void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, double target_y, double target_dist) {
     // frame-driven PD approach; stops itself when close
-    approach_to_target(ai, smx, smy, target_x, target_y);
+    approach_to_target(ai, smx, smy, target_x, target_y, target_dist);
 }
 
 // void align_to_goal_with_ball(struct RoboAI *ai, double smx, double smy) {
@@ -1398,13 +1404,13 @@ double compute_angle_error_to_target(struct RoboAI *ai, double smx, double smy, 
     fprintf(stderr, "compute_angle_error_to_target: direction vectors: heading (%.2f, %.2f), motion (%.2f, %.2f), dot %.2f and target(%.2f, %.2f) and target dot %.2f\n",
             hdx, hdy, smx, smy, dot_heading_motion, bnx, bny, hdx*bnx + hdy*bny);
     // to do: fix 当机器人背对着球
-    if (dot_heading_motion < 0) {
+    if (dot_heading_motion < -0.3) {
         // 校准robot heading 方向， 根据motion vector
         // 运动方向 == 头方向
         hdx = -hdx;
         hdy = -hdy;
         fprintf(stderr, "compute_angle_error_to_target: correcting heading direction based on motion vector\n");
-      
+
     }
 
       double dot_motion_ball    = hdx*bnx + hdy*bny;  // robot头 vs 球方向
@@ -1418,6 +1424,7 @@ double compute_angle_error_to_target(struct RoboAI *ai, double smx, double smy, 
 
     // angle error
     double ang_err = ang_to_ball - ang_bot;
+      
     // normalized to [-pi, pi]
     while (ang_err >  M_PI) ang_err -= 2*M_PI;
     while (ang_err < -M_PI) ang_err += 2*M_PI;
@@ -1444,12 +1451,12 @@ double compute_distance_error(struct RoboAI *ai,
     double dist = hypot(dx, dy);
 
     // distance change rate to ball
-    if (d_dist) {
+    if (d_ball_dist) {
         double vx_rel = ai->st.bvx - ai->st.svx;
         double vy_rel = ai->st.bvy - ai->st.svy;
         double denom = dist > 1e-3 ? dist : 1e-3;
         double rate = (dx * vx_rel + dy * vy_rel) / denom; 
-        *d_dist = -rate; // make positive = approaching
+        *d_ball_dist = -rate; // make positive = approaching
     }
 
     // distance difference 
@@ -1534,7 +1541,7 @@ void quick_face_to_target(struct RoboAI *ai, double smx, double smy, double targ
 // 先init gryo sensor 在第一次调用前
 // non- blocking & frame - driven
 // 根据机器人和球的位置动态调整左右motor，是机器人可以更精准地接近球
-void approach_to_target(struct RoboAI *ai, double smx, double smy, double target_x, double target_y)
+void approach_to_target(struct RoboAI *ai, double smx, double smy, double target_x, double target_y, double target_dist)
 {
     if (!ai || !ai->st.self || !ai->st.ball) return;
 
@@ -1565,7 +1572,7 @@ void approach_to_target(struct RoboAI *ai, double smx, double smy, double target
 
    double turn = 0.0; // 先不转了，直接走直线接近球
     // distance to ball
-    double target_dist = TARGET_BALL_DIST;  // target distance to ball // 要调参
+    // double target_dist = TARGET_BALL_DIST;  // target distance to ball // 要调参
     double dist_err = 0.0, d_dist = 0.0;
     double dist = compute_distance_error(ai, target_dist, &dist_err, &d_dist, target_x, target_y);
 
@@ -1575,11 +1582,11 @@ void approach_to_target(struct RoboAI *ai, double smx, double smy, double target
     double forward_speed = Kp_fwd * dist_err - Kd_fwd * d_dist; // pd
 
     // speed limits
-    if (forward_speed > 30) forward_speed = 30;
-    if (forward_speed < 10) forward_speed = 10;
+    if (forward_speed > 50) forward_speed = 50;
+    if (forward_speed < 30) forward_speed = 30;
 
     // compute left/right motor speeds
-    int left  = (forward_speed - turn) * 1.2; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
+    int left  = (forward_speed - turn) * 1.1; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
     int right = (forward_speed + turn) * 0.9;
 
     // deadband - ensure minimum speed to overcome friction
