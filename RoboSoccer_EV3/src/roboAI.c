@@ -43,7 +43,7 @@ int laggy=0;
 
 // declare static functions
 static void soccer_mode(struct RoboAI *ai, struct blob *blobs);
-static void penalty_mode(struct RoboAI *ai, struct blob *blobs);
+static void penalty_mode(struct RoboAI *ai, double smx, double smy);
 static void chase_mode(struct RoboAI *ai, struct blob *blobs);
 
 // Tuning knobs for penalty routine
@@ -62,8 +62,8 @@ static inline double deg_wrap(double d){
     return d;
 }
 
-static bool is_facing_ball(struct RoboAI *ai) {
-    double e = compute_angle_error_to_ball(ai);
+static bool is_facing_ball(struct RoboAI *ai, double smx, double smy) {
+    double e = compute_angle_error_to_ball(ai, smx, smy);
     fprintf(stderr, "Angle error to ball: %.2f deg\n", e);
     return !isnan(e) && fabs(e) <= FACE_THRESH_DEG;
 }
@@ -762,6 +762,8 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
   char line[1024];
   static int count=0;
   static double old_dx=0, old_dy=0;
+
+  static double stored_smx = 0, stored_smy = 0;
       
   /************************************************************
    * Standard initialization routine for starter code,
@@ -786,6 +788,8 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
    BT_all_stop(0);
    
    fprintf(stderr,"Self-ID complete. Current position: (%f,%f), current heading: [%f, %f], blob direction=[%f, %f], AI state=%d\n",ai->st.self->cx,ai->st.self->cy,ai->st.smx,ai->st.smy,ai->st.sdx,ai->st.sdy,ai->st.state);
+   stored_smx = ai->st.smx;
+   stored_smy = ai->st.smy;
    
    if (ai->st.self!=NULL)
    {
@@ -853,7 +857,7 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
       soccer_mode(ai, blobs);
   } else if (state >= 100 && state < 200) {
       // PENALTY mode
-      penalty_mode(ai, blobs);
+      penalty_mode(ai, stored_smx, stored_smy);
   } else if (state >= 200 && state < 300) {
       // CHASE mode
       chase_mode(ai, blobs);
@@ -882,7 +886,7 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
 }
 
 // TODOO: more detailed implementation
-static void penalty_mode(struct RoboAI *ai, struct blob *blobs) {
+static void penalty_mode(struct RoboAI *ai, double stored_smx, double stored_smy) {
   fprintf(stderr, "In PENALTY mode, current state: %d\n", ai->st.state);
   int state = ai->st.state;
 
@@ -909,7 +913,7 @@ static void penalty_mode(struct RoboAI *ai, struct blob *blobs) {
       }
     case ST_PENALTY_MOVE_TO_BALL:
       move_to_blob(ai);
-      if (!is_facing_ball(ai)) {
+      if (!is_facing_ball(ai, stored_smx, stored_smy)) {
         ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
         BT_all_stop(0);
         break;
@@ -919,8 +923,8 @@ static void penalty_mode(struct RoboAI *ai, struct blob *blobs) {
       }
       break;
     case ST_PENALTY_ALIGN_TO_GOAL:
-      align_to_goal_with_ball(ai);
-      if (!is_facing_ball(ai)) {
+      align_to_goal_with_ball(ai, stored_smx, stored_smy);
+      if (!is_facing_ball(ai, stored_smx, stored_smy)) {
         ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
         BT_all_stop(0);
         break;
@@ -947,24 +951,24 @@ static void chase_mode(struct RoboAI *ai, struct blob *blobs) {
 }
 
 // TODOO: implement the four functions below
-void rotate_to_blob(struct RoboAI *ai) {
+void rotate_to_blob(struct RoboAI *ai, double smx, double smy) {
   // we always rotate to the ball in penalty; keep signature for symmetry
   // fast, blocking snap using gyro
-  quick_face_to_ball(ai);
+  quick_face_to_ball(ai, smx, smy);
   // non-blocking fallback (if quick_face was within threshold it returns immediately)
   // nothing else needed here
 }
 
-void move_to_blob(struct RoboAI *ai) {
+void move_to_blob(struct RoboAI *ai, double smx, double smy) {
     // frame-driven PD approach; stops itself when close
-    approach_to_ball(ai);
+    approach_to_ball(ai, smx, smy);
 }
 
-void align_to_goal_with_ball(struct RoboAI *ai) {
+void align_to_goal_with_ball(struct RoboAI *ai, double smx, double smy) {
     // ensure we keep the ball centered while we drift into a "behind the ball" pose
-    if (!is_facing_ball(ai)) {
+    if (!is_facing_ball(ai, smx, smy)) {
         // small corrective snap toward the ball
-        quick_face_to_ball(ai);
+        quick_face_to_ball(ai, smx, smy);
         return;
     }
 
@@ -1004,15 +1008,26 @@ void kick_ball(struct RoboAI *ai)
 
 // 这个用作计算机器人当前朝向和球的角度差的helper func
 // 返回值是度数(degrees)，正负表示方向, normalized to [-180, 180]
-double compute_angle_error_to_ball(struct RoboAI *ai)
+// smx, smy 是机器人的运动向量，不要用ai里面的，传入一个固定的最新的
+double compute_angle_error_to_ball(struct RoboAI *ai, double smx, double smy)
 {
     if (!ai || !ai->st.self || !ai->st.ball) return NAN;
 
     // position deltas
     double dx = ai->st.ball->cx - ai->st.self->cx;
     double dy = ai->st.ball->cy - ai->st.self->cy;
-
     double ang_to_ball = atan2(dy, dx);
+
+    double hdx = ai->st.sdx;
+    double hdy = ai->st.sdy;
+  // use motion vector to disambiguate heading direction
+  // if dot product < 0, reverse heading direction
+    double dot = hdx * smx + hdy * smy; 
+    if (dot < 0) {
+        hdx = -hdx;
+        hdy = -hdy;
+    }
+
     double ang_bot = atan2(ai->st.sdy, ai->st.sdx);
 
     // angle error
@@ -1055,7 +1070,7 @@ double compute_distance_error(struct RoboAI *ai,
 // 调用前后检查角度！ 如果面向球角度差小于10度则 --> 进入下一个state
 // 这是使用gryo的阻塞的！快速转向函数
 // 调用后机器人应当面向球, 但此时的机器人位置可能有偏差(并不是精准朝向球的位置)（不管，依靠approach的pd调整！）
-void quick_face_to_ball(struct RoboAI *ai)
+void quick_face_to_ball(struct RoboAI *ai, double smx, double smy)
 {
     if (ai->st.ball == NULL || ai->st.self == NULL) return;
 
@@ -1065,16 +1080,16 @@ void quick_face_to_ball(struct RoboAI *ai)
     double curr_deg = (double)gyro_angle;
 
     // compute angle error to ball
-    double ang_err_deg = compute_angle_error_to_ball(ai);
+    double ang_err_deg = compute_angle_error_to_ball(ai, smx, smy);
     if (isnan(ang_err_deg)) return;
-    if (fabs(ang_err_deg) < 10.0) return; 
+    if (fabs(ang_err_deg) < ALIGN_THRESH_DEG) return; 
 
     double target_deg = curr_deg + ang_err_deg;
     const double THRESH = ALIGN_THRESH_DEG;
     const double SPEED = 12.0;
 
     // blocking turn to target using gyro
-    int rotate_flag = 0;
+    int rotate_flag = -1; // -1: not rotating, 0: to right , 1: to left
     while (1)
     {
         BT_read_gyro(GYRO_PORT, 0, &gyro_angle, &gyro_rate);
@@ -1086,18 +1101,17 @@ void quick_face_to_ball(struct RoboAI *ai)
         if (fabs(err) < THRESH)
         {
             fprintf(stderr, "quick_face_to_ball: aligned to ball within %.2f degrees\n", THRESH);
-            int BT_motor_port_stop(char port_ids, int brake_mode);	
             BT_motor_port_stop(LEFT_MOTOR, 1);
             BT_motor_port_stop(RIGHT_MOTOR, 1);
             break;
         }
-        if (err > 0 && !rotate_flag)
+        if (err > 0 && rotate_flag != 0)
         {
-            rotate_flag = 1;
+            rotate_flag = 0;
             BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(-SPEED*1.1), (char)(SPEED));  // turn right
             fprintf(stderr, "quick_face_to_ball: turning right with angle %.2f and target angle %.2f\n", curr_deg, target_deg);
         }
-        else if (err < 0 && !rotate_flag)
+        else if (err < 0 && rotate_flag != 1)
         {
             rotate_flag = 1;
             BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(SPEED*1.1), (char)(-SPEED));  // turn left
@@ -1105,19 +1119,20 @@ void quick_face_to_ball(struct RoboAI *ai)
         }
         usleep(10000); // 10ms
     }
-    BT_all_stop(0);
+    BT_motor_port_stop(LEFT_MOTOR, 1);
+    BT_motor_port_stop(RIGHT_MOTOR, 1);
 }
 
 // assume 已经朝向了球， 如果没有朝向球（角度差 > ?? 12度 ）返回上一个state(使用gryo 旋转)
 // 先init gryo sensor 在第一次调用前
 // non- blocking & frame - driven
 // 根据机器人和球的位置动态调整左右motor，是机器人可以更精准地接近球
-void approach_to_ball(struct RoboAI *ai)
+void approach_to_ball(struct RoboAI *ai, double smx, double smy)
 {
     if (!ai || !ai->st.self || !ai->st.ball) return;
 
     // angle error to ball as P term
-    double ang_err = compute_angle_error_to_ball(ai);
+    double ang_err = compute_angle_error_to_ball(ai, smx, smy);
     if (isnan(ang_err)) return;
 
     // rate of angle change from gyro as D term
@@ -1273,12 +1288,12 @@ void rotate_step_blocking(double step_deg)
 
 // 每帧调用
 // 如果没有面向球，则朝球的方向旋转10度（可能的step degreee）
-void chase_rotate(struct RoboAI *ai)
+void chase_rotate(struct RoboAI *ai, double smx, double smy)
 {
     if (!ai || !ai->st.self || !ai->st.ball) return;
 
     // compute angle error to ball
-    double ang_err_deg = compute_angle_error_to_ball(ai);
+    double ang_err_deg = compute_angle_error_to_ball(ai, smx, smy);
     if (isnan(ang_err_deg)) return;
 
     //参数设定 --> 可调
