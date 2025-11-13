@@ -162,7 +162,7 @@ int denoise_exp(struct BlobHistory *h, double alpha,
 
 // declare static functions
 static void soccer_mode(struct RoboAI *ai, struct blob *blobs);
-static void penalty_mode(struct RoboAI *ai, struct blob *blobs);
+static void penalty_mode(struct RoboAI *ai, double smx, double smy);
 static void chase_mode(struct RoboAI *ai, struct blob *blobs);
 
 // Tuning knobs for penalty routine
@@ -181,8 +181,8 @@ static inline double deg_wrap(double d){
     return d;
 }
 
-static bool is_facing_ball(struct RoboAI *ai) {
-    double e = compute_angle_error_to_ball(ai);
+static bool is_facing_ball(struct RoboAI *ai, double smx, double smy) {
+    double e = compute_angle_error_to_ball(ai, smx, smy);
     fprintf(stderr, "Angle error to ball: %.2f deg\n", e);
     return !isnan(e) && fabs(e) <= FACE_THRESH_DEG;
 }
