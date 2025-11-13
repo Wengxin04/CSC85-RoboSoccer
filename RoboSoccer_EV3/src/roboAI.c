@@ -1415,12 +1415,12 @@ double compute_angle_error_to_target(struct RoboAI *ai, double smx, double smy, 
 
     }
 
-      double dot_motion_ball    = hdx*bnx + hdy*bny;  // robot头 vs 球方向
-        if (dot_motion_ball < 0) {
-        fprintf(stderr, "compute_angle_error_to_target: correcting heading direction based on target direction\n");
-            hdx = -hdx;
-            hdy = -hdy;
-        }
+      // double dot_motion_ball    = hdx*bnx + hdy*bny;  // robot头 vs 球方向
+      //   if (dot_motion_ball < 0) {
+      //   fprintf(stderr, "compute_angle_error_to_target: correcting heading direction based on target direction\n");
+      //       hdx = -hdx;
+      //       hdy = -hdy;
+      //   }
 
     double ang_bot = atan2(hdy, hdx);
 
