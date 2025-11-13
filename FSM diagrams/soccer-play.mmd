@@ -1,0 +1,70 @@
+---
+config:
+  layout: elk
+---
+stateDiagram
+    direction TB
+
+    %% Define States
+    state "Initial Setup (0)" as Init
+    state "Go forward and rotate towards ball (2)" as GoForwardRotate
+    %% state "Go straight towards ball (3)" as GoStraight
+    state "realign to kick towards goal (4)" as RealignToKick
+    state "angle minimal degrees sideways to swerve obstacle (5)" as AngleSideways
+    %%state "Go in front of ball (6)" as GoInFront
+    state "swerve around obstacle (7)" as Swerve
+    state "kick (8)" as Kick
+    state "Lost Track - move slightly (9)" as LostTrack 
+    state "Goal Scored - wait (10)" as GoalScored
+    state "Align to kick ball against border (11)" as AngleAgainstBorder
+
+    %% Transitions
+    [*] --> Init
+    Init --> GoForwardRotate : identify agents
+    
+    GoForwardRotate --> LostTrack : lost track
+    GoForwardRotate --> GoForwardRotate : not at ball
+    GoForwardRotate --> Swerve: obstacle detected
+    GoForwardRotate --> RealignToKick: close to ball
+    %%GoForwardRotate --> GoStraight : ball closer to goal than robot
+    %%GoForwardRotate --> GoInFront : ball further to goal than robot
+    
+    %%GoStraight --> LostTrack : lost track
+    %%GoStraight --> GoForwardRotate : not at ball
+    %%GoStraight --> RealignToKick : near the ball
+    %%GoStraight --> Swerve : obstacle
+    
+    %%GoInFront --> LostTrack : lost track
+    %%GoInFront --> GoForwardRotate : not at ball
+    %%GoInFront --> RealignToKick : near the ball
+    %%GoInFront --> Swerve : obstacle
+    
+    RealignToKick --> LostTrack : lost track
+    RealignToKick --> AngleSideways : obstacle in front of ball
+    RealignToKick --> Kick : no obstacle in front of ball
+    RealignToKick --> AngleAgainstBorder: ball too close to border
+    RealignToKick --> GoForwardRotate: ball moved out of range
+    
+    AngleSideways --> Kick : no obstacle
+    AngleSideways --> AngleSideways : obstacle still detected
+    AngleSideways --> GoForwardRotate: ball moved out of range
+
+    AngleAgainstBorder --> Kick : properly aligned
+    AngleAgainstBorder --> AngleAgainstBorder: not yet aligned
+    AngleAgainstBorder --> GoForwardRotate: ball moved out of range
+    
+    Swerve --> LostTrack : lost track
+    Swerve --> RealignToKick : ball close to us and obstacle
+    Swerve --> GoForwardRotate : no obstacle
+    Swerve --> Swerve : no ball and obstacle
+    
+    Kick --> GoalScored : kick scored
+    Kick --> GoForwardRotate: no goal scored
+    Kick --> LostTrack: lost track
+
+    LostTrack --> LostTrack: not found
+    LostTrack --> GoForwardRotate: found
+
+    GoalScored --> GoalScored: field not yet reset
+    GoalScored --> GoForwardRotate: field reset
+    

@@ -1,0 +1,44 @@
+---
+config:
+  layout: elk
+---
+stateDiagram
+    direction TB
+
+    %% Define States
+    state "Initial Setup (200)" as Init
+    state "Go forward and rotate towards ball (201)" as GoForwardRotate
+    %% state "Go straight towards ball (202)" as GoStraight
+    state "Swerve around obstacle (203)" as Swerve
+    state "At ball (204)" as AtBall
+    state "Lost track - move slightly (205)" as LostTrack
+    state "Border - angle away (206)" as Border
+
+    %% Transitions
+    [*] --> Init
+    Init --> GoForwardRotate: identify agents, go towards ball
+    
+    GoForwardRotate --> LostTrack : lost track
+    GoForwardRotate --> GoForwardRotate : not at ball
+    GoForwardRotate --> Swerve: obstacle detected in way
+    GoForwardRotate --> Border: approaching border
+    %%GoForwardRotate --> GoStraight : facing ball
+    
+    %%GoStraight --> LostTrack : lost track
+    %%GoStraight --> GoForwardRotate : ball moved
+    %%GoStraight --> Swerve : obstacle detected
+    %%GoStraight --> AtBall : arrived at ball
+    
+    Swerve --> LostTrack : lost track
+    Swerve --> Swerve : obstacle still detected
+    Swerve --> GoForwardRotate : obstacle no more
+    
+    AtBall --> LostTrack : lost track
+    AtBall --> AtBall: still at ball
+    AtBall --> GoForwardRotate: ball moved
+
+    LostTrack --> LostTrack: not found
+    LostTrack --> GoForwardRotate: found
+
+    Border --> Border: border collision
+    Border --> GoForwardRotate: no border collision

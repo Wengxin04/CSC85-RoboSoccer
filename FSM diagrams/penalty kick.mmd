@@ -8,18 +8,21 @@ stateDiagram
   Init --> RotateToBall:find own, ball, and opponent blobs
   RotateToBall --> GoStraight:facing ball
   RotateToBall --> RotateToBall:still turning
-  RotateToBall --> Init:reset
+  RotateToBall --> LostTrack:lost track
   GoStraight --> RotateAround:near ball
   GoStraight --> GoStraight:still moving and far
-  GoStraight --> RotateToBall:lost track
+  GoStraight --> LostTrack:lost track
   RotateAround --> Kick:facing goal
   RotateAround --> RotateAround:not aligned yet
-  RotateAround --> RotateToBall:lost track
+  RotateAround --> LostTrack:lost track
+  LostTrack --> LostTrack: not found 
+  LostTrack --> RotateToBall: found
   Kick --> Done:finished kick
   Done --> [*]
   Init:Initial setup (100)
   RotateToBall:Rotate towards ball (101)
   GoStraight:Go straight towards ball (102)
   RotateAround:Rotate around ball to face goal (103)
+  LostTrack: Lost Track - move slightly (105)
   Kick:Kick (104)
   Done:Done (199)
