@@ -44,6 +44,8 @@ extern int sx;              // Get access to the image size from the imageCaptur
 extern int sy;
 int laggy=0;
 
+static void rotate_to_ball(struct RoboAI *ai, double smx, double smy, double target_x, double target_y);
+
 ////////////////////////////////////
 // Denosing data
 ////////////////////////////////////
@@ -1188,7 +1190,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
     double ball_cy = ai->st.ball->cy;
       if (!is_facing_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy)) {
         fprintf(stderr, "Rotating to face ball in PENALTY mode\n");
-        rotate_to_blob(ai, *stored_smx, *stored_smy, ai->st.ball->cx, ai->st.ball->cy, );
+        rotate_to_ball(ai, *stored_smx, *stored_smy, ai->st.ball->cx, ai->st.ball->cy);
         // ai->st.state = ST_MOTION_UPDATE2;
       } else {
         fprintf(stderr, "Facing ball achieved in PENALTY mode\n");
@@ -1331,6 +1333,15 @@ void quick_face_to_right_ball(struct RoboAI *ai, double smx, double smy, double 
 void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, double target_y) {
   // we always rotate to the ball in penalty; keep signature for symmetry
   // fast, blocking snap using gyro
+    quick_face_to_target(ai, smx, smy, target_x, target_y);
+
+  // non-blocking fallback (if quick_face was within threshold it returns immediately)
+  // nothing else needed here
+}
+
+void rotate_to_ball(struct RoboAI *ai, double smx, double smy, double target_x, double target_y) {
+  // we always rotate to the ball in penalty; keep signature for symmetry
+  // fast, blocking snap using gyro
   int reverse_flag = is_ball_on_right(ai, smx, smy);
   if (reverse_flag) {
     quick_face_to_right_ball(ai, smx, smy, target_x, target_y);
@@ -1341,6 +1352,9 @@ void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, 
   // non-blocking fallback (if quick_face was within threshold it returns immediately)
   // nothing else needed here
 }
+
+
+
 
 void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, double target_y, double target_dist) {
     // frame-driven PD approach; stops itself when close
