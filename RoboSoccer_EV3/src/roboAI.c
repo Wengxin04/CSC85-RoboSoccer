@@ -188,7 +188,7 @@ static inline double deg_wrap(double d){
 static bool is_facing_target(struct RoboAI *ai, double smx, double smy, double target_cx, double target_cy) {
     double e = compute_angle_error_to_target(ai, smx, smy, target_cx, target_cy);
     fprintf(stderr, "Angle error to target: %.2f deg\n", e);
-    return !isnan(e) && fabs(e) <= FACE_THRESH_DEG;
+    return !isnan(e) && fabs(e) <= FACE_THRESH_DEG + 3;
 }
 
 static bool is_close_to_ball(struct RoboAI *ai, double ball_cx, double ball_cy) {
@@ -1415,12 +1415,12 @@ double compute_angle_error_to_target(struct RoboAI *ai, double smx, double smy, 
 
     }
 
-      // double dot_motion_ball    = hdx*bnx + hdy*bny;  // robot头 vs 球方向
-      //   if (dot_motion_ball < 0) {
-      //   fprintf(stderr, "compute_angle_error_to_target: correcting heading direction based on target direction\n");
-      //       hdx = -hdx;
-      //       hdy = -hdy;
-      //   }
+   double dot_motion_ball    = hdx*bnx + hdy*bny;  // robot头 vs 球方向
+     if (dot_motion_ball < 0) {
+     fprintf(stderr, "compute_angle_error_to_target: correcting heading direction based on target direction\n");
+         hdx = -hdx;
+         hdy = -hdy;
+     }
 
     double ang_bot = atan2(hdy, hdx);
 
@@ -1588,7 +1588,7 @@ void approach_to_target(struct RoboAI *ai, double smx, double smy, double target
     if (forward_speed < 30) forward_speed = 30;
 
     // compute left/right motor speeds
-    int left  = (forward_speed - turn) * 1.1; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
+    int left  = (forward_speed - turn) * 1.2; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
     int right = (forward_speed + turn) * 0.9;
 
     // deadband - ensure minimum speed to overcome friction
