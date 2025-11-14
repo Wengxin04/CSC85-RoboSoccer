@@ -72,13 +72,9 @@ struct TrackingHistory {
 struct TrackingHistory trackHist = {0};
 
 void update_blob_history(struct BlobHistory *h,
-                         int blob_detected,
-                         double cx, double cy,
-                         double vx, double vy,
-                         double mx, double my,
-                         double dx, double dy) {
+                         struct blob *b) {
 
-    if (blob_detected) {
+    if (b != NULL) {
         // Reset missed-frame counter
         h->missed_frames = 0;
         h->is_active = 1;
@@ -96,11 +92,14 @@ void update_blob_history(struct BlobHistory *h,
         }
 
         // Store new sample
-        h->cx[0] = cx;
-        h->cy[0] = cy;
-
-        h->dx[0] = dx;
-        h->dy[0] = dy;
+        h->cx[0] = b->cx;
+        h->cy[0] = b->cy;
+        h->vx[0] = b->vx;
+        h->vy[0] = b->vy;
+        h->mx[0] = b->mx;
+        h->my[0] = b->my;
+        h->dx[0] = b->dx;
+        h->dy[0] = b->dy;
 
         if (h->count < HISTORY_LEN)
             h->count++;
@@ -1018,29 +1017,14 @@ static void penalty_mode(struct RoboAI *ai, double stored_smx, double stored_smy
   // for (int i = 0; i < 3; i++) {
   //   struct blob* b = aiBlob[i];
   //   struct BlobHistory* hist = aiBlobHist[i];
-  //   int blob_detected = (b != NULL);
-
-  //   update_blob_history(hist, blob_detected, b->cx, b->cy, b->vx, b->vy, b->mx, b->my, b->dx, b->dy);
+  //   update_blob_history(hist, b);
+  // if (b == NULL) {
+  //   b = (struct blob*)malloc(sizeof(struct blob));
+  // }
   //   int valid = denoise_exp(hist, 0.3, &b->cx, &b->cy, &b->vx, &b->vy, &b->dx, &b->dy);
   //   if (!valid) {
-  //     fprintf(stderr, "Lost track of a blob, back to 101\n");
-  //     ai->st.state = 101;
-  //   }
-  // }// denoise check for all blobs
-  // struct blob *aiBlob[] = { ai->st.ball, ai->st.self, ai->st.opp };
-  // struct BlobHistory *aiBlobHist[] = { &trackHist.ball, &trackHist.self, &trackHist.opp };
-
-
-  // for (int i = 0; i < 3; i++) {
-  //   struct blob* b = aiBlob[i];
-  //   struct BlobHistory* hist = aiBlobHist[i];
-  //   int blob_detected = (b != NULL);
-
-  //   update_blob_history(hist, blob_detected, b->cx, b->cy, b->vx, b->vy, b->mx, b->my, b->dx, b->dy);
-  //   int valid = denoise_exp(hist, 0.3, &b->cx, &b->cy, &b->vx, &b->vy, &b->dx, &b->dy);
-  //   if (!valid) {
-  //     fprintf(stderr, "Lost track of a blob, back to 101\n");
-  //     ai->st.state = 101;
+  //     fprintf(stderr, "Lost track of a blob, to lost state\n");
+  //     ai->st.state = ST_PENALTY_LOST_TRACK;
   //   }
   // }
 
