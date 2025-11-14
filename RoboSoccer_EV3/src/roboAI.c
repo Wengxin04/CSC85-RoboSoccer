@@ -1200,7 +1200,7 @@ double compute_angle_error_to_ball(struct RoboAI *ai, double smx, double smy)
     double ang_bot = atan2(hdy, hdx);
 
     // angle error
-    double ang_err = ang_to_ball - ang_bot;
+    double ang_err = ang_bot - ang_to_ball;
     // normalized to [-pi, pi]
     while (ang_err >  M_PI) ang_err -= 2*M_PI;
     while (ang_err < -M_PI) ang_err += 2*M_PI;
