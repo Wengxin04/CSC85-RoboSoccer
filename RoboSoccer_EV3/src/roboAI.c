@@ -1588,7 +1588,7 @@ void approach_to_target(struct RoboAI *ai, double smx, double smy, double target
     if (forward_speed < 30) forward_speed = 30;
 
     // compute left/right motor speeds
-    int left  = (forward_speed - turn) * 1.1; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
+    int left  = (forward_speed - turn) * 1.3; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
     int right = (forward_speed + turn) * 0.9;
 
     // deadband - ensure minimum speed to overcome friction
