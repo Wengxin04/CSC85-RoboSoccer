@@ -5,20 +5,33 @@ config:
 stateDiagram
   direction TB
   [*] --> Init
-  Init --> RotateToBall:find own, ball, and opponent blobs
+  Init --> RotatetoX: find own, ball, and opponent blobs
+  RotatetoX --> RotatetoX: not aligned
+  RotatetoX --> DrivtoX: aligned
+  RotatetoX --> LostTrack: lost track
+
+  DrivetoX --> RotateToBall : at X
+  DrivetoX --> RotatetoX: unaliged
+  DrivetoX --> DrivtoX: not at X
+  DrivetoX --> LostTrack: LostTrack
+
   RotateToBall --> GoStraight:facing ball
   RotateToBall --> RotateToBall:still turning
   RotateToBall --> LostTrack:lost track
-  GoStraight --> RotateAround:near ball
+
+  GoStraight --> Kick:near ball
   GoStraight --> GoStraight:still moving and far
   GoStraight --> LostTrack:lost track
+
   RotateAround --> Kick:facing goal
   RotateAround --> RotateAround:not aligned yet
   RotateAround --> LostTrack:lost track
+
   LostTrack --> LostTrack: not found 
-  LostTrack --> RotateToBall: found
+  LostTrack --> RotatetoX: found
   Kick --> Done:finished kick
   Done --> [*]
+
   Init:Initial setup (100)
   RotateToBall:Rotate towards ball (101)
   GoStraight:Go straight towards ball (102)
@@ -26,3 +39,6 @@ stateDiagram
   LostTrack: Lost Track - move slightly (105)
   Kick:Kick (104)
   Done:Done (199)
+
+  RotatetoX: Rotate to X (111)
+  DrivetoX: Drive to X (112)
