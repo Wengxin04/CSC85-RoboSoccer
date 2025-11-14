@@ -1361,9 +1361,9 @@ void kick_ball(struct RoboAI *ai)
 {
     // use kick motor to kick
     fprintf(stderr, "Kicking the ball!\n");
-   // BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 1000, 100);
-   // BT_timed_motor_port_start(LEFT_MOTOR, 100, 100, 1000, 100);
-    // usleep(200*1000);
+   BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 1000, 100);
+   BT_timed_motor_port_start(LEFT_MOTOR, 100, 100, 1000, 100);
+    usleep(200*1000);
     BT_timed_motor_port_start(KICK_MOTOR, 100, 100, 200, 100);
     usleep(800*1000);
     fprintf(stderr, "Resetting kick motor\n");
