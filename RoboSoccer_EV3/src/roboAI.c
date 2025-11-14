@@ -1188,7 +1188,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
     double ball_cy = ai->st.ball->cy;
       if (!is_facing_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy)) {
         fprintf(stderr, "Rotating to face ball in PENALTY mode\n");
-        rotate_to_blob(ai, *stored_smx, *stored_smy, ai->st.ball->cx, ai->st.ball->cy);
+        rotate_to_blob(ai, *stored_smx, *stored_smy, ai->st.ball->cx, ai->st.ball->cy, );
         // ai->st.state = ST_MOTION_UPDATE2;
       } else {
         fprintf(stderr, "Facing ball achieved in PENALTY mode\n");
@@ -1249,11 +1249,95 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
 static void chase_mode(struct RoboAI *ai, struct blob *blobs) {
 }
 
+// Return 1 if ball is on robot's right side, 0 otherwise
+int is_ball_on_right(struct RoboAI *ai, double smx, double smy)
+{
+    if (!ai || !ai->st.self || !ai->st.ball) return 0;
+
+    // Robot's heading vector = motion direction (smx, smy)
+    double hx = smx;
+    double hy = smy;
+
+    // Ball relative position vector
+    double bx = ai->st.ball->cx - ai->st.self->cx;
+    double by = ai->st.ball->cy - ai->st.self->cy;
+
+    // 2D cross product: hx * by - hy * bx
+    double cross = hx * by - hy * bx;
+
+    // cross < 0  → ball is on the right
+    return (cross < 0) ? 1 : 0;
+}
+
+void quick_face_to_right_ball(struct RoboAI *ai, double smx, double smy, double target_x, double target_y)
+{
+    if (ai->st.ball == NULL || ai->st.self == NULL) return;
+
+    // init current gyro reading
+    int gyro_angle = 0, gyro_rate = 0;
+    BT_read_gyro(GYRO_PORT, 1, &gyro_angle, &gyro_rate);
+    double curr_deg = (double)gyro_angle;
+
+    // compute angle error to ball
+    // compute target coordinate first
+    double ang_err_deg = compute_angle_error_to_target(ai, smx, smy, target_x, target_y);
+    if (isnan(ang_err_deg)) return;
+    if (fabs(ang_err_deg) < ALIGN_THRESH_DEG) return; 
+
+    double target_deg = curr_deg + ang_err_deg;
+    target_deg = -target_deg; // reverse direction
+    const double THRESH = ALIGN_THRESH_DEG;
+    const double SPEED = 12.0;
+    fprintf(stderr, "quick_face_to_target: current angle %.2f, target angle %.2f, angle error %.2f\n",
+            curr_deg, target_deg, ang_err_deg);
+    // blocking turn to target using gyro
+    int rotate_flag = -1; // -1: not rotating, 0: to right , 1: to left
+    while (1)
+    {
+        BT_read_gyro(GYRO_PORT, 0, &gyro_angle, &gyro_rate);
+        curr_deg = (double)gyro_angle;
+        double err = target_deg - curr_deg;
+        while (err > 180.0) err -= 360.0;
+        while (err < -180.0) err += 360.0;
+
+        if (fabs(err) < THRESH)
+        {
+            fprintf(stderr, "quick_face_to_target: aligned to ball within %.2f degrees\n", THRESH);
+            BT_motor_port_stop(LEFT_MOTOR, 1);
+            BT_motor_port_stop(RIGHT_MOTOR, 1);
+            break;
+        }
+        // err > 0 -> BALL IS AT ITSELF RIGHT -> TURN RIGHT
+        // err < 0 -> BALL IS AT ITSELF LEFT  -> TURN LEFT
+        // TO DO: SOLOVE -180&180 CROSSING ISSUE
+        if (err > 0 && rotate_flag == -1)
+        {
+            rotate_flag = 0;
+            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(SPEED*1.1), (char)(-SPEED));  // turn right
+           fprintf(stderr, "quick_face_to_target: turning right with angle %.2f and target angle %.2f\n", curr_deg, target_deg);
+        }
+        else if (err < 0 && rotate_flag == -1)
+        {
+            rotate_flag = 1;
+            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(-SPEED*1.1), (char)(SPEED));  // turn left
+            fprintf(stderr, "quick_face_to_target: turning left with angle %.2f and target angle %.2f\n", curr_deg, target_deg);
+        }
+        usleep(10000); // 10ms
+    }
+    BT_motor_port_stop(LEFT_MOTOR, 1);
+    BT_motor_port_stop(RIGHT_MOTOR, 1);
+}
 // TODOO: implement the four functions below
 void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, double target_y) {
   // we always rotate to the ball in penalty; keep signature for symmetry
   // fast, blocking snap using gyro
-  quick_face_to_target(ai, smx, smy, target_x, target_y);
+  int reverse_flag = is_ball_on_right(ai, smx, smy);
+  if (reverse_flag) {
+    quick_face_to_right_ball(ai, smx, smy, target_x, target_y);
+  } else {
+    quick_face_to_target(ai, smx, smy, target_x, target_y);
+  }
+
   // non-blocking fallback (if quick_face was within threshold it returns immediately)
   // nothing else needed here
 }
