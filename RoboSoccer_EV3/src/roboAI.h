@@ -57,6 +57,7 @@
 #define ST_CHASE_ROTATE_TO_BALL 201    // Rotate to face the ball
 #define ST_CHASE_MOVE_TO_BALL 202       // Move to the ball
 #define ST_CHASE_KICK_BALL 203        // Kick the ball
+#define ST_CHASE_KICK_DONE 299              // Chase done
 
 struct AI_data{
 	// This data structure is used to hold all data relevant to the state of the AI.
