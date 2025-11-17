@@ -1368,8 +1368,10 @@ double compute_angle_error_to_target(struct RoboAI *ai, double smx, double smy, 
     // 服了我自己了现实就分不清左右.....这个原本partial success只是概率吗？？
     // angle error
     double ang_err = ang_to_target - ang_bot;
-    // then ang_err < 0 -> target is to the right of heading --> need turn right
-    //      ang_err > 0 -> target is to the left of heading --> need turn left
+    // then ang_err < 0 -> target is to the left of heading --> need turn left
+    //      ang_err > 0 -> target is to the right of heading --> need turn right
+    //坐标轴以top left 为原点，x向右，y向下 为positive
+
       
     // normalized to [-pi, pi]
     while (ang_err >  M_PI) ang_err -= 2*M_PI;
@@ -1441,7 +1443,7 @@ void quick_face_to_target(struct RoboAI *ai, double smx, double smy, double targ
     if (fabs(ang_err_deg) < ALIGN_THRESH_DEG) return; 
 
     // inverse target angle!!! 
-    double target_deg = - ang_err_deg;
+    double target_deg =  ang_err_deg; // >0 -> turn right, <0 -> turn left
     const double THRESH = ALIGN_THRESH_DEG;
     const double SPEED = 12.0;
     fprintf(stderr, "quick_face_to_target: current angle %.2f, target angle %.2f, angle error %.2f\n",
@@ -1471,8 +1473,8 @@ void quick_face_to_target(struct RoboAI *ai, double smx, double smy, double targ
             BT_motor_port_stop(RIGHT_MOTOR, 1);
             break;
         }
-        // -target < 0 -> target IS AT ITSELF left -> TURN left -> curr_deg is always negative
-        // -target > 0 -> target IS AT ITSELF right  -> TURN right -> curr_deg is always positive
+        // target < 0 -> target IS AT ITSELF left -> TURN left -> curr_deg is always negative
+        // target > 0 -> target IS AT ITSELF right  -> TURN right -> curr_deg is always positive
         // so err  < 0 -> turn left, err > 0 -> turn right
         // TO DO: SOLOVE -180&180 CROSSING ISSUE
         if (err > 0 && rotate_flag == -1)
