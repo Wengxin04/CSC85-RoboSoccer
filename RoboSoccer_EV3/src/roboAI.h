@@ -184,5 +184,6 @@ void approach_to_target(struct RoboAI *ai, double smx, double smy, double target
 void rotate_to_goal(struct RoboAI *ai);
 void rotate_step_blocking(double step_deg);
 void chase_rotate(struct RoboAI *ai, double smx, double smy);
+double correct_motion_vector(double* smx, double*smy, double rotate_angle_deg);
 
 #endif

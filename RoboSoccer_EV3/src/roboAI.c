@@ -1079,6 +1079,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       fprintf(stderr, "Angle error to target: %.2f degrees\n", angle_error);
 
       rotate_to_blob(ai, *stored_smx, *stored_smy, ai->st.ball->cx, ai->st.ball->cy);
+      correct_motion_vector(stored_smx, stored_smy, angle_error);
       ai->st.state = ST_PENALTY_DONE;
       break;
 
@@ -1188,6 +1189,8 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
     
     case ST_PENALTY_DONE:
     {
+      double dot_product = ai->st.sdx * (*stored_smx) + ai->st.sdy * (*stored_smy);
+      fprintf(stderr," PENALTY DONE. self directive vector: (%.2f, %.2f), stored smx: (%.2f, %.2f), Final motion vector dot product: %.2f\n", ai->st.sdx, ai->st.sdy, *stored_smx, *stored_smy, dot_product);
       BT_motor_port_stop(LEFT_MOTOR, 0);
       BT_motor_port_stop(RIGHT_MOTOR, 0);
       break;
@@ -1389,6 +1392,20 @@ double compute_angle_error_to_target(struct RoboAI *ai, double smx, double smy, 
 
     fprintf(stderr, "compute_angle_error_to_target: angle error %.2f degrees with motion vector (%.2f, %.2f) and corrected heading (%.2f, %.2f)\n", ang_err_deg, smx, smy, hdx, hdy);
     return ang_err_deg;
+}
+
+double correct_motion_vector(double* smx, double*smy, double rotate_angle_deg){
+  double rad = rotate_angle_deg * M_PI / 180.0;  
+  double cos_rad = cos(rad);
+  double sin_rad = sin(rad);
+
+  double new_smx = (*smx) * cos_rad - (*smy) * sin_rad; // -sinx
+  double new_smy = (*smx) * sin_rad + (*smy) * cos_rad; // +sinx
+
+  *smx = new_smx;
+  *smy = new_smy;
+  return hypot(new_smx, new_smy);
+
 }
 
 // 计算机器人和球的距离误差 的helper func
