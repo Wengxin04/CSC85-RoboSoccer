@@ -1071,9 +1071,17 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       // BT_motor_port_stop(RIGHT_MOTOR, 0);
       // ai->st.state = ST_PENALTY_DONE;
       // break;
+
       
       // calculate target position
     {      
+      double angle_error = compute_angle_error_to_target(ai, *stored_smx, *stored_smy, ai->st.ball->cx, ai->st.ball->cy);
+      fprintf(stderr, "Angle error to target: %.2f degrees\n", angle_error);
+
+      rotate_to_blob(ai, *stored_smx, *stored_smy, ai->st.ball->cx, ai->st.ball->cy);
+      ai->st.state = ST_PENALTY_DONE;
+      break;
+
       double target_cx, target_cy;
       compute_target_position(ai, &target_cx, &target_cy);
       // print self position and target position
@@ -1081,22 +1089,22 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
 
       // compute angle difference for debugging
       // compute_angle_error_to_target
-      double angle_error = compute_angle_error_to_target(ai, *stored_smx, *stored_smy, target_cx, target_cy);
-      fprintf(stderr, "Angle error to target: %.2f degrees\n", angle_error);
+      // double angle_error = compute_angle_error_to_target(ai, *stored_smx, *stored_smy, target_cx, target_cy);
+      // fprintf(stderr, "Angle error to target: %.2f degrees\n", angle_error);
 
-      if (!is_facing_target(ai, *stored_smx, *stored_smy, target_cx, target_cy)) {
-        fprintf(stderr, "Rotating to face target in PENALTY mode\n");
-        rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
-        // ai->st.state = ST_MOTION_UPDATE1;
-      } else {
-        fprintf(stderr, "Facing target achieved in PENALTY mode\n");
-        *stored_smx = 0;
-        *stored_smy = 0;
-        ai->st.state = ST_PENALTY_MOVE_TO_TARGET;
-        BT_motor_port_stop(LEFT_MOTOR, 0);
-        BT_motor_port_stop(RIGHT_MOTOR, 0);
-      }
-      break;
+      // if (!is_facing_target(ai, *stored_smx, *stored_smy, target_cx, target_cy)) {
+      //   fprintf(stderr, "Rotating to face target in PENALTY mode\n");
+      //   rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
+      //   // ai->st.state = ST_MOTION_UPDATE1;
+      // } else {
+      //   fprintf(stderr, "Facing target achieved in PENALTY mode\n");
+      //   *stored_smx = 0;
+      //   *stored_smy = 0;
+      //   ai->st.state = ST_PENALTY_MOVE_TO_TARGET;
+      //   BT_motor_port_stop(LEFT_MOTOR, 0);
+      //   BT_motor_port_stop(RIGHT_MOTOR, 0);
+      // }
+       break;
     }
 
     case ST_PENALTY_MOVE_TO_TARGET:
@@ -1441,7 +1449,7 @@ void quick_face_to_target(struct RoboAI *ai, double smx, double smy, double targ
     if (fabs(ang_err_deg) < ALIGN_THRESH_DEG) return; 
 
     // inverse target angle!!! 
-    double target_deg = - ang_err_deg;
+    double target_deg =  ang_err_deg;
     const double THRESH = ALIGN_THRESH_DEG;
     const double SPEED = 12.0;
     fprintf(stderr, "quick_face_to_target: current angle %.2f, target angle %.2f, angle error %.2f\n",
