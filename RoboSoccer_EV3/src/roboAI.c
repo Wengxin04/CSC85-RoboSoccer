@@ -1043,6 +1043,7 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
 
 #define BALL_IN_ATTACK_ZONE 1
 #define BALL_NOT_IN_ATTACK_ZONE 0
+#define BALL_VERY_CLOSE_TO_GOAL 2
 
 #define OBSTACLE_DETECTED 1
 #define NO_OBSTACLE 0
@@ -1063,13 +1064,18 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
   int state = ai->st.state;
   fprintf(stderr, "In SOCCER mode, current state: %d\n", state);
 
-  // need a function to check ball position (return 1 if ball in attack zone, else if ball in edge return 0)
+  // need a function to check ball position (return 1 if ball in attack zone, else if ball in edge return 0, return 2 if ball is very close to our goal -> need to defend)
   int ball_position = check_ball_position(ai);
   // need a function to detect obstacles (return 1 if obstacle detected, else 0)
   int obstacle_status = detect_obstacle(ai);
 
   switch (state) {
     case ST_SOCCER_NORMAL_PLAY:
+      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
+        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
+        ai->st.state = ST_SOCCER_DEFEND_GOAL;
+        break;
+      }
       if (ball_position == BALL_NOT_IN_ATTACK_ZONE) {
         fprintf(stderr, "Ball not in attack zone, switching to edge play\n");
         ai->st.state = ST_SOCCER_EDGE_PLAY;
@@ -1080,6 +1086,11 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
       break;
 
     case ST_SOCCER_EDGE_PLAY:
+      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
+        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
+        ai->st.state = ST_SOCCER_DEFEND_GOAL;
+        break;
+      }
       if (ball_position == BALL_IN_ATTACK_ZONE) {
         fprintf(stderr, "Ball in attack zone, switching to normal play\n");
         ai->st.state = ST_SOCCER_NORMAL_PLAY;
@@ -1089,7 +1100,25 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
       // ai->st.state = ST_SOCCER_ROTATE_TO_EDGE; // placeholder transition
       break;
 
+    case ST_SOCCER_DEFEND_GOAL:
+      if (ball_position != BALL_VERY_CLOSE_TO_GOAL) {
+        fprintf(stderr, "Ball not very close to goal, switching to normal play\n");
+        ai->st.state = ST_SOCCER_NORMAL_PLAY;
+      } 
+      // need logic for robot to defend goal
+      // TODOO: implement defend goal logic
+      else if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
+        fprintf(stderr, "Ball very close to goal, continuing defend goal\n");
+        defend_goal(ai);
+      }
+      break;
+
     case ST_SOCCER_ROTATE_AND_MOVE_TO_BALL:
+      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
+        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
+        ai->st.state = ST_SOCCER_DEFEND_GOAL;
+        break;
+      }
       if (ball_position == BALL_NOT_IN_ATTACK_ZONE) {
         fprintf(stderr, "Ball not in attack zone, switching to edge play\n");
         ai->st.state = ST_SOCCER_EDGE_PLAY;
@@ -1112,6 +1141,11 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
       break;
 
     case ST_SOCCER_DRIBBLE_BALL:
+      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
+        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
+        ai->st.state = ST_SOCCER_DEFEND_GOAL;
+        break;
+      }
       if (ball_position == BALL_NOT_IN_ATTACK_ZONE) {
         fprintf(stderr, "Ball not in attack zone, switching to edge play\n");
         ai->st.state = ST_SOCCER_EDGE_PLAY;
@@ -1141,6 +1175,11 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
       break;
 
     case ST_SOCCER_SWERVE_OBSTACLE:
+      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
+        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
+        ai->st.state = ST_SOCCER_DEFEND_GOAL;
+        break;
+      }
       // need logic for robot to swerve around obstacle
       // TODOO: implement swerve obstacle logic
       if (obstacle_status == OBSTACLE_DETECTED) {
@@ -1154,6 +1193,11 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
       break;
 
     case ST_SOCCER_KICK_BALL:
+      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
+        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
+        ai->st.state = ST_SOCCER_DEFEND_GOAL;
+        break;
+      }
       if (ball_position == BALL_NOT_IN_ATTACK_ZONE) {
         fprintf(stderr, "Ball not in attack zone, switching to edge play\n");
         ai->st.state = ST_SOCCER_EDGE_PLAY;
@@ -1171,6 +1215,11 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
 
     // TODO!!!
     case ST_SOCCER_ROTATE_TO_EDGE:
+      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
+        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
+        ai->st.state = ST_SOCCER_DEFEND_GOAL;
+        break;
+      }
       if (ball_position == BALL_IN_ATTACK_ZONE) {
         fprintf(stderr, "Ball in attack zone, switching to normal play\n");
         ai->st.state = ST_SOCCER_NORMAL_PLAY;
@@ -1181,6 +1230,11 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
       break;
 
     case ST_SOCCER_MOVE_TO_EDGE:
+      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
+        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
+        ai->st.state = ST_SOCCER_DEFEND_GOAL;
+        break;
+      }
       if (ball_position == BALL_IN_ATTACK_ZONE) {
         fprintf(stderr, "Ball in attack zone, switching to normal play\n");
         ai->st.state = ST_SOCCER_NORMAL_PLAY;
@@ -1192,6 +1246,15 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
 
     // This rotate to kick is a vague idea, try whether it works
     case ST_SOCCER_ROTATE_TO_KICK:
+      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
+        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
+        ai->st.state = ST_SOCCER_DEFEND_GOAL;
+        break;
+      }
+      if (ball_position == BALL_IN_ATTACK_ZONE) {
+        fprintf(stderr, "Ball in attack zone, switching to normal play\n");
+        ai->st.state = ST_SOCCER_NORMAL_PLAY;
+      }
       // need logic for robot to rotate very quickly so hits the ball using its side
       // TODOO: implement rotate to kick logic
       // after rotate to kick, should go back to normal play
@@ -2156,5 +2219,11 @@ int is_in_kicking_position(struct RoboAI *ai)
 void swerve_around_obstacle(struct RoboAI *ai, struct blob *obstacle)
 {
   // TODO: implement swerve around obstacle logic
+  return;
+}
+
+void defend_goal(struct RoboAI *ai)
+{
+  // TODO: implement defend goal logic
   return;
 }

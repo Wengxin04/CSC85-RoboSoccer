@@ -63,6 +63,7 @@
 #define ST_SOCCER_INIT 0              // Initial state
 #define ST_SOCCER_NORMAL_PLAY 1      // Normal play state
 #define ST_SOCCER_EDGE_PLAY 2		// Edge play state
+#define ST_SOCCER_DEFEND_GOAL 3		// Defend state - need a high priority
 
 // normal play substates: if the ball is kickable
 #define ST_SOCCER_ROTATE_AND_MOVE_TO_BALL 10
@@ -223,5 +224,6 @@ void rotate_and_move_to_ball(struct RoboAI *ai, double smx, double smy, double t
 void dribble_ball_towards_goal(struct RoboAI *ai);
 int is_in_kicking_position(struct RoboAI *ai);
 void swerve_around_obstacle(struct RoboAI *ai, struct blob *obstacle);
+void defend_goal(struct RoboAI *ai);
 
 #endif
