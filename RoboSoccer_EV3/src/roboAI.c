@@ -1052,7 +1052,7 @@ static int last_state = -1; // use to restore state after obstacle avoidance
 
 static int check_ball_position(struct RoboAI *ai) {
   // TODOO: implement function to check ball position
-  // return BALL_IN_ATTACK_ZONE or BALL_NOT_IN_ATTACK_ZONE
+  // return BALL_IN_ATTACK_ZONE or BALL_NOT_IN_ATTACK_ZONE or BALL_VERY_CLOSE_TO_GOAL
 }
 
 static int detect_obstacle(struct RoboAI *ai) {
@@ -1705,8 +1705,8 @@ double compute_angle_error_to_target(struct RoboAI *ai, double smx, double smy, 
     if (!ai || !ai->st.self || !ai->st.ball) return NAN;
 
     // position deltas
-    double dx = target_cx - ai->st.self->cx;
-    double dy = target_cy - ai->st.self->cy;
+    double dx = target_x - ai->st.self->cx;
+    double dy = target_y - ai->st.self->cy;
     double ang_to_target = atan2(dy, dx);
 
     // normalize target direction vector
