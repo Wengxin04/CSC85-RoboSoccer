@@ -1247,6 +1247,85 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
 }
 
 static void chase_mode(struct RoboAI *ai, struct blob *blobs) {
+  fprintf(stderr, "In CHASE mode, current state: %d\n", ai->st.state);
+  int state = ai->st.state;
+  // TODOO: add chase mode logic here
+  switch (state) {
+    case ST_CHASE_ROTATE_TO_BALL:
+     if (ai == NULL || ai->st.ball == NULL) {
+        fprintf(stderr, "Ball lost after kick, rotating to search\n");
+        ai->st.state = ST_CHASE_KICK_DONE;
+         usleep(500*1000); // wait for a second
+        break;
+      }
+      // TODOO: implement rotate to ball logic
+      if (!is_facing_target(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx, ai->st.ball->cy)) {
+        fprintf(stderr, "Rotating to face ball in CHASE mode\n");
+        rotate_to_blob(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx, ai->st.ball->cy);
+      } else {
+        fprintf(stderr, "Facing ball achieved in CHASE mode\n");
+        ai->st.state = ST_CHASE_MOVE_TO_BALL;
+        BT_motor_port_stop(LEFT_MOTOR, 0);
+        BT_motor_port_stop(RIGHT_MOTOR, 0);
+      }
+      break;
+
+    case ST_CHASE_MOVE_TO_BALL:
+      // TODOO: implement move to ball logic
+       if (ai == NULL || ai->st.ball == NULL) {
+        fprintf(stderr, "Ball lost after kick, rotating to search\n");
+        ai->st.state = ST_CHASE_KICK_DONE;
+         usleep(500*1000); // wait for a second
+        break;
+      }
+      if (!is_facing_target(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx, ai->st.ball->cy)) {
+        ai->st.state = ST_CHASE_ROTATE_TO_BALL;
+        BT_motor_port_stop(LEFT_MOTOR, 0);
+        BT_motor_port_stop(RIGHT_MOTOR, 0);
+        break;
+      } 
+      else if (!is_close_to_ball(ai)) {
+        // fprintf(stderr, "Moving to ball in CHASE mode\n");
+        move_to_blob(ai, ai->st.smx, ai->st.smy);
+      }
+      else if (is_close_to_ball(ai)) {
+        ai->st.state = ST_CHASE_KICK_BALL;
+       // fprintf(stderr, "change to Kicking ball in CHASE mode with distance difference: %.2f\n", compute_distance_error(ai));
+        BT_motor_port_stop(LEFT_MOTOR, 0);
+        BT_motor_port_stop(RIGHT_MOTOR, 0);
+      }
+      break;
+
+    case ST_CHASE_KICK_BALL:
+     if (ai == NULL || ai->st.ball == NULL) {
+        fprintf(stderr, "Ball lost after kick, rotating to search\n");
+        ai->st.state = ST_CHASE_KICK_DONE;
+         usleep(500*1000); // wait for a second
+        break;
+      }
+
+      kick_ball(ai);
+      ai->st.state = ST_CHASE_ROTATE_TO_BALL;
+      break;
+
+    case ST_CHASE_KICK_DONE:
+    if (ai == NULL || ai->st.ball == NULL) {
+        fprintf(stderr, "Ball lost after kick, rotating to search\n");
+        ai->st.state = ST_CHASE_KICK_DONE;
+         usleep(500*1000); // wait for a second
+        break;
+      }else {
+        fprintf(stderr, "Ball found after kick, resuming chase\n");
+        ai->st.state = ST_CHASE_ROTATE_TO_BALL;
+      }
+      usleep(10*1000); // wait for a second
+      break;  
+
+    default:
+      fprintf(stderr, "Unknown CHASE state: %d\n", state);
+      ai->st.state = ST_CHASE_ROTATE_TO_BALL;
+      break;
+  }
 }
 
 // TODOO: implement the four functions below
@@ -1290,8 +1369,8 @@ void kick_ball(struct RoboAI *ai)
 {
     // use kick motor to kick
     fprintf(stderr, "Kicking the ball!\n");
-    BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 1000, 100);
-    BT_timed_motor_port_start(LEFT_MOTOR, 100, 100, 1000, 100);
+   BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 1000, 100);
+   BT_timed_motor_port_start(LEFT_MOTOR, 100, 100, 1000, 100);
     usleep(200*1000);
     BT_timed_motor_port_start(KICK_MOTOR, 100, 100, 200, 100);
     usleep(800*1000);
