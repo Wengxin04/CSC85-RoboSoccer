@@ -1184,6 +1184,9 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
         move_to_blob(ai, *stored_smx, *stored_smy, b_cx, b_cy, TARGET_BALL_DIST);
         *stored_smx = ai->st.smx;
         *stored_smy = ai->st.smy;
+        // 好像是motion vector 的错误导致角度计算又有问题.....
+        // 实在不行这里stored 不更新了，或者加noise handling！
+        sleep(1); // avoid smx/smy being zero/错误计算
       }
       else if (is_close_to_ball(ai, b_cx, b_cy)) {
         ai->st.state = ST_PENALTY_KICK_BALL;
