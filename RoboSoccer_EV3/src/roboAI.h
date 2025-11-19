@@ -78,14 +78,14 @@
 #define ST_SOCCER_DONE 99             // Soccer done
 
 // Global variables for field corners
-static double tl_x = Mcorners[0][0];
-static double tl_y = Mcorners[0][1];
-static double tr_x = Mcorners[1][0];
-static double tr_y = Mcorners[1][1];
-static double bl_x = Mcorners[2][0];
-static double bl_y = Mcorners[2][1];
-static double br_x = Mcorners[3][0];
-static double br_y = Mcorners[3][1];
+extern double tl_x;
+extern double tl_y;
+extern double tr_x;
+extern double tr_y;
+extern double bl_x;
+extern double bl_y;
+extern double br_x;
+extern double br_y;
 
 struct AI_data{
 	// This data structure is used to hold all data relevant to the state of the AI.
@@ -219,5 +219,9 @@ void rotate_to_goal(struct RoboAI *ai);
 void rotate_step_blocking(double step_deg);
 void chase_rotate(struct RoboAI *ai, double smx, double smy);
 void compute_goal_center(struct RoboAI *ai, double *gcx, double *gcy);
+void rotate_and_move_to_ball(struct RoboAI *ai, double smx, double smy, double target_dist);
+void dribble_ball_towards_goal(struct RoboAI *ai);
+int is_in_kicking_position(struct RoboAI *ai);
+void swerve_around_obstacle(struct RoboAI *ai, struct blob *obstacle);
 
 #endif

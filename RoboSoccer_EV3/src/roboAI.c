@@ -40,6 +40,17 @@
 
 #include <stdbool.h>
 
+// single definition (storage) for the field-corner variables declared extern in roboAI.h
+// Initialize to constant values (0.0). Populate from Mcorners at runtime in setupAI.
+double tl_x = 0.0;
+double tl_y = 0.0;
+double tr_x = 0.0;
+double tr_y = 0.0;
+double bl_x = 0.0;
+double bl_y = 0.0;
+double br_x = 0.0;
+double br_y = 0.0;
+
 extern int sx;              // Get access to the image size from the imageCapture module
 extern int sy;
 int laggy=0;
@@ -803,6 +814,20 @@ int setupAI(int mode, int own_col, struct RoboAI *ai)
  ai->DPhead=NULL;
  fprintf(stderr,"Initialized!\n");
 
+ // Initialize field corner coordinates from Mcorners at runtime.
+ // Mcorners is provided by the imageCapture module; doing this here avoids
+ // using Mcorners in a static initializer (which must be a compile-time constant).
+ // If Mcorners hasn't been populated yet this will simply copy current values.
+ // (This is safe and ensures a single definition of the corner variables.)
+ tl_x = Mcorners[0][0];
+ tl_y = Mcorners[0][1];
+ tr_x = Mcorners[1][0];
+ tr_y = Mcorners[1][1];
+ bl_x = Mcorners[2][0];
+ bl_y = Mcorners[2][1];
+ br_x = Mcorners[3][0];
+ br_y = Mcorners[3][1];
+
  return(1);
 }
 
@@ -1077,7 +1102,13 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
       }
       // need logic for robot to rotate and move to ball simultaneously
       // TODOO: implement rotate and move to ball logic
-      // ai->st.state = ST_SOCCER_DRIBBLE_BALL; // placeholder transition
+      if (!is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
+        fprintf(stderr, "In soccer normal play: now rotating and moving to ball\n");
+        rotate_and_move_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy, TARGET_BALL_DIST);
+      } else {
+        fprintf(stderr, "Close to ball, switching to dribble ball\n");
+        ai->st.state = ST_SOCCER_DRIBBLE_BALL;
+      }
       break;
 
     case ST_SOCCER_DRIBBLE_BALL:
@@ -1092,14 +1123,34 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
         break;
       }
       // need logic for robot to dribble ball towards goal
-      // TODOO: implement dribble ball logic
-      // ai->st.state = ST_SOCCER_KICK_BALL; // placeholder transition
+      // TODOO: implement dribble ball towards goal logic and check for kicking position logic
+      if (!is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
+        fprintf(stderr, "Lost close proximity to ball, resuming chase\n");
+        ai->st.state = ST_SOCCER_ROTATE_AND_MOVE_TO_BALL;
+        break;
+      } else {
+        fprintf(stderr, "Dribbling ball towards goal\n");
+        dribble_ball_towards_goal(ai);
+      }
+      if (is_in_kicking_position(ai)) {
+        fprintf(stderr, "In kicking position, switching to kick ball\n");
+        ai->st.state = ST_SOCCER_KICK_BALL;
+      } else {
+        fprintf(stderr, "Not in kicking position yet, continuing dribble\n");
+      }
       break;
 
     case ST_SOCCER_SWERVE_OBSTACLE:
       // need logic for robot to swerve around obstacle
       // TODOO: implement swerve obstacle logic
-      // ai->st.state = last_state; // placeholder transition
+      if (obstacle_status == OBSTACLE_DETECTED) {
+        fprintf(stderr, "Still detecting obstacle, continuing swerve\n");
+        swerve_around_obstacle(ai, ai->st.opp);
+        break;
+      } else {
+        fprintf(stderr, "Obstacle cleared, resuming previous state\n");
+        ai->st.state = last_state;
+      }
       break;
 
     case ST_SOCCER_KICK_BALL:
@@ -1111,7 +1162,7 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
         fprintf(stderr, "Kicking the ball towards goal!\n");
         kick_ball(ai);
          usleep(500*1000); // wait for a second
-        ai->st.state = ST_SOCCER_ROTATE_AND_MOVE_TO_BALL; // after kick, rotate to search for ball
+        ai->st.state = ST_SOCCER_NORMAL_PLAY; // after kick, return to normal play
       } else {
         fprintf(stderr, "Not close enough to ball to kick, resuming chase\n");
         ai->st.state = ST_SOCCER_ROTATE_AND_MOVE_TO_BALL;
@@ -1611,13 +1662,13 @@ void compute_target_position(struct RoboAI *ai, double *target_cx, double *targe
 // 这个用作计算机器人当前朝向和球的角度差的helper func
 // 返回值是度数(degrees)，正负表示方向, normalized to [-180, 180]
 // smx, smy 是机器人的运动向量，不要用ai里面的，传入一个固定的最新的
-double compute_angle_error_to_target(struct RoboAI *ai, double smx, double smy, double target_cx, double target_cy)
+double compute_angle_error_to_target(struct RoboAI *ai, double smx, double smy, double target_x, double target_y)
 {
     if (!ai || !ai->st.self || !ai->st.ball) return NAN;
 
     // position deltas
-    double dx = target_cx - ai->st.self->cx;
-    double dy = target_cy - ai->st.self->cy;
+    double dx = target_x - ai->st.self->cx;
+    double dy = target_y - ai->st.self->cy;
     double ang_to_ball = atan2(dy, dx);
 
     // normalize ball direction vector
@@ -2079,4 +2130,31 @@ void chase_rotate(struct RoboAI *ai, double smx, double smy)
        
         BT_all_stop(0);
     }
+}
+
+void rotate_and_move_to_ball(struct RoboAI *ai, double smx, double smy, double target_dist)
+{
+  // TODO: implement this function
+  // want to rotate and move to ball simultaneously
+  return;
+}
+
+void dribble_ball_towards_goal(struct RoboAI *ai)
+{
+  // TODO: implement this function
+  // want to dribble the ball towards the goal
+  return;
+}
+
+int is_in_kicking_position(struct RoboAI *ai)
+{
+  // TODO: implement this function
+  // want to check if the robot is in a good position to kick the ball (i.e. no obstacles, aligned to goal, etc.)
+  return 0;
+}
+
+void swerve_around_obstacle(struct RoboAI *ai, struct blob *obstacle)
+{
+  // TODO: implement swerve around obstacle logic
+  return;
 }
