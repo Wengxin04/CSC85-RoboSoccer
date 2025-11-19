@@ -57,7 +57,25 @@
 #define ST_CHASE_ROTATE_TO_BALL 201    // Rotate to face the ball
 #define ST_CHASE_MOVE_TO_BALL 202       // Move to the ball
 #define ST_CHASE_KICK_BALL 203        // Kick the ball
-#define ST_CHASE_KICK_DONE 299              // Chase done
+#define ST_CHASE_DONE 299              // Chase done
+
+// Soccer mode state definitions (0-99)
+#define ST_SOCCER_INIT 0              // Initial state
+#define ST_SOCCER_NORMAL_PLAY 1      // Normal play state
+#define ST_SOCCER_EDGE_PLAY 2		// Edge play state
+
+// normal play substates: if the ball is kickable
+#define ST_SOCCER_ROTATE_AND_MOVE_TO_BALL 10
+#define ST_SOCCER_DRIBBLE_BALL 11
+#define ST_SOCCER_SWERVE_OBSTACLE 12
+#define ST_SOCCER_KICK_BALL 13
+
+// edge play substates: if the ball is near the edge of the field (exit edge play when the ball is back to normal play area)
+#define ST_SOCCER_ROTATE_TO_EDGE 20
+#define ST_SOCCER_MOVE_TO_EDGE 21
+#define ST_SOCCER_ROTATE_TO_KICK 22
+
+#define ST_SOCCER_DONE 99             // Soccer done
 
 struct AI_data{
 	// This data structure is used to hold all data relevant to the state of the AI.

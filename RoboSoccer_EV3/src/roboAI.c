@@ -1016,7 +1016,123 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
 
 }
 
+#define BALL_IN_ATTACK_ZONE 1
+#define BALL_NOT_IN_ATTACK_ZONE 0
+
+#define OBSTACLE_DETECTED 1
+#define NO_OBSTACLE 0
+
+static int last_state = -1; // use to restore state after obstacle avoidance
+
+static int check_ball_position(struct RoboAI *ai) {
+  // TODOO: implement function to check ball position
+  // return BALL_IN_ATTACK_ZONE or BALL_NOT_IN_ATTACK_ZONE
+}
+
+static int detect_obstacle(struct RoboAI *ai) {
+  // TODOO: implement function to detect obstacles
+  // return OBSTACLE_DETECTED or NO_OBSTACLE
+}
+
 static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
+  int state = ai->st.state;
+  fprintf(stderr, "In SOCCER mode, current state: %d\n", state);
+
+  // need a function to check ball position (return 1 if ball in attack zone, else if ball in edge return 0)
+  int ball_position = check_ball_position(ai);
+  // need a function to detect obstacles (return 1 if obstacle detected, else 0)
+  int obstacle_status = detect_obstacle(ai);
+
+  switch (state) {
+    case ST_SOCCER_NORMAL_PLAY:
+      if (ball_position == BALL_NOT_IN_ATTACK_ZONE) {
+        fprintf(stderr, "Ball not in attack zone, switching to edge play\n");
+        ai->st.state = ST_SOCCER_EDGE_PLAY;
+      } else {
+        fprintf(stderr, "Ball in attack zone, continuing normal play\n");
+        ai->st.state = ST_SOCCER_ROTATE_AND_MOVE_TO_BALL;
+      }
+      break;
+    case ST_SOCCER_EDGE_PLAY:
+      if (ball_position == BALL_IN_ATTACK_ZONE) {
+        fprintf(stderr, "Ball in attack zone, switching to normal play\n");
+        ai->st.state = ST_SOCCER_NORMAL_PLAY;
+      }
+      // need logic for robot to move to edge and position for attack
+      // TODOO: implement edge play logic
+      // ai->st.state = ST_SOCCER_ROTATE_TO_EDGE; // placeholder transition
+      break;
+    case ST_SOCCER_ROTATE_AND_MOVE_TO_BALL:
+      if (ball_position == BALL_NOT_IN_ATTACK_ZONE) {
+        fprintf(stderr, "Ball not in attack zone, switching to edge play\n");
+        ai->st.state = ST_SOCCER_EDGE_PLAY;
+      }
+      if (obstacle_status == OBSTACLE_DETECTED) {
+        fprintf(stderr, "Obstacle detected, switching to swerve obstacle\n");
+        last_state = ai->st.state;
+        ai->st.state = ST_SOCCER_SWERVE_OBSTACLE;
+        break;
+      }
+      // need logic for robot to rotate and move to ball simultaneously
+      // TODOO: implement rotate and move to ball logic
+      // ai->st.state = ST_SOCCER_DRIBBLE_BALL; // placeholder transition
+      break;
+    case ST_SOCCER_DRIBBLE_BALL:
+      if (ball_position == BALL_NOT_IN_ATTACK_ZONE) {
+        fprintf(stderr, "Ball not in attack zone, switching to edge play\n");
+        ai->st.state = ST_SOCCER_EDGE_PLAY;
+      }
+      if (obstacle_status == OBSTACLE_DETECTED) {
+        fprintf(stderr, "Obstacle detected, switching to swerve obstacle\n");
+        last_state = ai->st.state;
+        ai->st.state = ST_SOCCER_SWERVE_OBSTACLE;
+        break;
+      }
+      // need logic for robot to dribble ball towards goal
+      // TODOO: implement dribble ball logic
+      // ai->st.state = ST_SOCCER_KICK_BALL; // placeholder transition
+      break;
+    case ST_SOCCER_SWERVE_OBSTACLE:
+      // need logic for robot to swerve around obstacle
+      // TODOO: implement swerve obstacle logic
+      // ai->st.state = last_state; // placeholder transition
+      break;
+    case ST_SOCCER_KICK_BALL:
+      if (ball_position == BALL_NOT_IN_ATTACK_ZONE) {
+        fprintf(stderr, "Ball not in attack zone, switching to edge play\n");
+        ai->st.state = ST_SOCCER_EDGE_PLAY;
+      }
+      if (is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
+        fprintf(stderr, "Kicking the ball towards goal!\n");
+        kick_ball(ai);
+         usleep(500*1000); // wait for a second
+        ai->st.state = ST_SOCCER_ROTATE_AND_MOVE_TO_BALL; // after kick, rotate to search for ball
+      } else {
+        fprintf(stderr, "Not close enough to ball to kick, resuming chase\n");
+        ai->st.state = ST_SOCCER_ROTATE_AND_MOVE_TO_BALL;
+      }
+    // TODO!!!
+    case ST_SOCCER_ROTATE_TO_EDGE:
+    case ST_SOCCER_MOVE_TO_EDGE:
+    case ST_SOCCER_ROTATE_TO_KICK:
+    case ST_SOCCER_DONE:
+      if (ai == NULL || ai->st.ball == NULL) {
+        fprintf(stderr, "Ball lost after kick, rotating to search\n");
+        ai->st.state = ST_SOCCER_DONE;
+         usleep(500*1000); // wait for a second
+        break;
+      }else {
+        fprintf(stderr, "Ball found after kick, resuming chase\n");
+        ai->st.state = ST_SOCCER_NORMAL_PLAY;
+      }
+      usleep(10*1000); // wait for a second
+      break;
+    
+    default:
+      fprintf(stderr, "Unknown SOCCER state: %d\n", state);
+      ai->st.state = ST_SOCCER_NORMAL_PLAY; // reset to normal play
+      break;
+  }
 }
 
 // TODOO: more detailed implementation
@@ -1254,7 +1370,7 @@ static void chase_mode(struct RoboAI *ai, struct blob *blobs) {
     case ST_CHASE_ROTATE_TO_BALL:
      if (ai == NULL || ai->st.ball == NULL) {
         fprintf(stderr, "Ball lost after kick, rotating to search\n");
-        ai->st.state = ST_CHASE_KICK_DONE;
+        ai->st.state = ST_CHASE_DONE;
          usleep(500*1000); // wait for a second
         break;
       }
@@ -1274,7 +1390,7 @@ static void chase_mode(struct RoboAI *ai, struct blob *blobs) {
       // TODOO: implement move to ball logic
        if (ai == NULL || ai->st.ball == NULL) {
         fprintf(stderr, "Ball lost after kick, rotating to search\n");
-        ai->st.state = ST_CHASE_KICK_DONE;
+        ai->st.state = ST_CHASE_DONE;
          usleep(500*1000); // wait for a second
         break;
       }
@@ -1299,7 +1415,7 @@ static void chase_mode(struct RoboAI *ai, struct blob *blobs) {
     case ST_CHASE_KICK_BALL:
      if (ai == NULL || ai->st.ball == NULL) {
         fprintf(stderr, "Ball lost after kick, rotating to search\n");
-        ai->st.state = ST_CHASE_KICK_DONE;
+        ai->st.state = ST_CHASE_DONE;
          usleep(500*1000); // wait for a second
         break;
       }
@@ -1308,10 +1424,10 @@ static void chase_mode(struct RoboAI *ai, struct blob *blobs) {
       ai->st.state = ST_CHASE_ROTATE_TO_BALL;
       break;
 
-    case ST_CHASE_KICK_DONE:
+    case ST_CHASE_DONE:
     if (ai == NULL || ai->st.ball == NULL) {
         fprintf(stderr, "Ball lost after kick, rotating to search\n");
-        ai->st.state = ST_CHASE_KICK_DONE;
+        ai->st.state = ST_CHASE_DONE;
          usleep(500*1000); // wait for a second
         break;
       }else {
