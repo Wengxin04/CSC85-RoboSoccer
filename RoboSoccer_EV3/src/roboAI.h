@@ -51,7 +51,8 @@
 
 #define ST_MOTION_UPDATE1 110
 #define ST_MOTION_UPDATE2 111
-#
+#define ST_PENALTY_EMPTY1 120
+#define ST_PENALTY_EMPTY2 121
 
 struct AI_data{
 	// This data structure is used to hold all data relevant to the state of the AI.
