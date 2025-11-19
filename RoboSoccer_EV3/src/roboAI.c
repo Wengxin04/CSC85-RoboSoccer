@@ -1284,11 +1284,11 @@ static void chase_mode(struct RoboAI *ai, struct blob *blobs) {
         BT_motor_port_stop(RIGHT_MOTOR, 0);
         break;
       } 
-      else if (!is_close_to_ball(ai)) {
+      else if (!is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
         // fprintf(stderr, "Moving to ball in CHASE mode\n");
-        move_to_blob(ai, ai->st.smx, ai->st.smy);
+        move_to_blob(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx, ai->st.ball->cy, TARGET_BALL_DIST);
       }
-      else if (is_close_to_ball(ai)) {
+      else if (is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
         ai->st.state = ST_CHASE_KICK_BALL;
        // fprintf(stderr, "change to Kicking ball in CHASE mode with distance difference: %.2f\n", compute_distance_error(ai));
         BT_motor_port_stop(LEFT_MOTOR, 0);
@@ -1627,7 +1627,7 @@ void approach_to_target(struct RoboAI *ai, double smx, double smy, double target
   if (!ai || !ai->st.self || !ai->st.ball) return;
 
   // angle error to ball as P term
-  double ang_err = compute_angle_error_to_ball(ai, smx, smy);
+  double ang_err = compute_angle_error_to_target(ai, smx, smy, target_x, target_y);
   if (isnan(ang_err)) return;
 
   // rate of angle change from gyro as D term
@@ -1667,7 +1667,7 @@ void approach_to_target(struct RoboAI *ai, double smx, double smy, double target
   // if (turn > 12) turn = 12;
   // if (turn < -12) turn = -12;
 
-  double turn = 0.0; // 先不转了，直接走直线接近球
+  // double turn = 0.0; // 先不转了，直接走直线接近球
 
   // distance to ball
   // double target_dist = TARGET_BALL_DIST;  // target distance to ball // 要调参
