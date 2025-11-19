@@ -1053,6 +1053,7 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
         ai->st.state = ST_SOCCER_ROTATE_AND_MOVE_TO_BALL;
       }
       break;
+
     case ST_SOCCER_EDGE_PLAY:
       if (ball_position == BALL_IN_ATTACK_ZONE) {
         fprintf(stderr, "Ball in attack zone, switching to normal play\n");
@@ -1062,6 +1063,7 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
       // TODOO: implement edge play logic
       // ai->st.state = ST_SOCCER_ROTATE_TO_EDGE; // placeholder transition
       break;
+
     case ST_SOCCER_ROTATE_AND_MOVE_TO_BALL:
       if (ball_position == BALL_NOT_IN_ATTACK_ZONE) {
         fprintf(stderr, "Ball not in attack zone, switching to edge play\n");
@@ -1077,6 +1079,7 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
       // TODOO: implement rotate and move to ball logic
       // ai->st.state = ST_SOCCER_DRIBBLE_BALL; // placeholder transition
       break;
+
     case ST_SOCCER_DRIBBLE_BALL:
       if (ball_position == BALL_NOT_IN_ATTACK_ZONE) {
         fprintf(stderr, "Ball not in attack zone, switching to edge play\n");
@@ -1092,11 +1095,13 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
       // TODOO: implement dribble ball logic
       // ai->st.state = ST_SOCCER_KICK_BALL; // placeholder transition
       break;
+
     case ST_SOCCER_SWERVE_OBSTACLE:
       // need logic for robot to swerve around obstacle
       // TODOO: implement swerve obstacle logic
       // ai->st.state = last_state; // placeholder transition
       break;
+
     case ST_SOCCER_KICK_BALL:
       if (ball_position == BALL_NOT_IN_ATTACK_ZONE) {
         fprintf(stderr, "Ball not in attack zone, switching to edge play\n");
@@ -1111,10 +1116,37 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
         fprintf(stderr, "Not close enough to ball to kick, resuming chase\n");
         ai->st.state = ST_SOCCER_ROTATE_AND_MOVE_TO_BALL;
       }
+      break;
+
     // TODO!!!
     case ST_SOCCER_ROTATE_TO_EDGE:
+      if (ball_position == BALL_IN_ATTACK_ZONE) {
+        fprintf(stderr, "Ball in attack zone, switching to normal play\n");
+        ai->st.state = ST_SOCCER_NORMAL_PLAY;
+      }
+      // need logic for robot to rotate to face edge
+      // TODOO: implement rotate to edge logic
+      // ai->st.state = ST_SOCCER_MOVE_TO_EDGE; // placeholder transition
+      break;
+
     case ST_SOCCER_MOVE_TO_EDGE:
+      if (ball_position == BALL_IN_ATTACK_ZONE) {
+        fprintf(stderr, "Ball in attack zone, switching to normal play\n");
+        ai->st.state = ST_SOCCER_NORMAL_PLAY;
+      }
+      // need logic for robot to move to edge position
+      // TODOO: implement move to edge logic
+      // ai->st.state = ST_SOCCER_ROTATE_AND_MOVE_TO_BALL; // placeholder transition
+      break;
+
+    // This rotate to kick is a vague idea, try whether it works
     case ST_SOCCER_ROTATE_TO_KICK:
+      // need logic for robot to rotate very quickly so hits the ball using its side
+      // TODOO: implement rotate to kick logic
+      // after rotate to kick, should go back to normal play
+      // ai->st.state = ST_SOCCER_NORMAL_PLAY; // placeholder transition
+      break;
+
     case ST_SOCCER_DONE:
       if (ai == NULL || ai->st.ball == NULL) {
         fprintf(stderr, "Ball lost after kick, rotating to search\n");
