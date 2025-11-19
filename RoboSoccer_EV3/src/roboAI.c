@@ -1221,7 +1221,21 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       // break;
       
       // calculate target position
-    {      
+
+      // test corner positions and test goal center calculation
+      // print all corner positions
+      fprintf(stderr, "Corner positions: \n");
+      fprintf(stderr, "Top-left: (%.2f, %.2f)\n", tl_x, tl_y);
+      fprintf(stderr, "Top-right: (%.2f, %.2f)\n", tr_x, tr_y);
+      fprintf(stderr, "Bottom-left: (%.2f, %.2f)\n", bl_x, bl_y);
+      fprintf(stderr, "Bottom-right: (%.2f, %.2f)\n", br_x, br_y);
+      double gx, gy;
+      compute_goal_center(ai, &gx, &gy);
+      fprintf(stderr, "Computed goal center at: (%.2f, %.2f)\n", gx, gy);
+      ai->st.state = ST_PENALTY_DONE;
+      break;
+
+    {
       double target_cx, target_cy;
       compute_target_position(ai, &target_cx, &target_cy);
       // print self position and target position
@@ -1537,23 +1551,10 @@ void kick_ball(struct RoboAI *ai)
 // 有八百个参数可能要调
 /////////////////////////////////////////////////////////////////////////////////
 
-
-// Mcorners has the field data
-
 // a function that computes the gcx, gcy coordinate of the goal center based on which side we are on
 void compute_goal_center(struct RoboAI *ai, double *gcx, double *gcy)
 {
     if (!ai || !ai->st.self || !gcx || !gcy) return;
-
-    double tl_x, tl_y, tr_x, tr_y, br_x, br_y, bl_x, bl_y;
-    tl_x = Mcorners[0][0];;
-    tl_y = Mcorners[0][1];
-    tr_x = Mcorners[1][0];
-    tr_y = Mcorners[1][1];
-    br_x = Mcorners[2][0];
-    br_y = Mcorners[2][1];
-    bl_x = Mcorners[3][0];
-    bl_y = Mcorners[3][1];
 
     double field_width = sqrt((tr_x - tl_x)*(tr_x - tl_x) + (tr_y - tl_y)*(tr_y - tl_y));
     double field_height = sqrt((bl_x - tl_x)*(bl_x - tl_x) + (bl_y - tl_y)*(bl_y - tl_y));
