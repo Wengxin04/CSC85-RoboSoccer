@@ -87,6 +87,8 @@ extern double bl_x;
 extern double bl_y;
 extern double br_x;
 extern double br_y;
+#define ST_PENALTY_EMPTY1 120
+#define ST_PENALTY_EMPTY2 121
 
 struct AI_data{
 	// This data structure is used to hold all data relevant to the state of the AI.
@@ -225,5 +227,6 @@ void dribble_ball_towards_goal(struct RoboAI *ai);
 int is_in_kicking_position(struct RoboAI *ai);
 void swerve_around_obstacle(struct RoboAI *ai, struct blob *obstacle);
 void defend_goal(struct RoboAI *ai);
+double correct_motion_vector(double* smx, double*smy, double rotate_angle_deg);
 
 #endif
