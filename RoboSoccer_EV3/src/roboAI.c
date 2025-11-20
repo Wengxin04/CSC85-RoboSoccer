@@ -1078,9 +1078,12 @@ static int check_ball_position(struct RoboAI *ai) {
   }
 }
 
+// TODO: Consider obstacle case, in what cases we consider obstacle detected?
 static int detect_obstacle(struct RoboAI *ai) {
   // TODOO: implement function to detect obstacles
   // return OBSTACLE_DETECTED or NO_OBSTACLE
+  // for now, just return NO_OBSTACLE
+  return NO_OBSTACLE;
 }
 
 static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
