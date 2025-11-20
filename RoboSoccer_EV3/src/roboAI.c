@@ -204,6 +204,7 @@ enum {
     BEHIND_BALL_GAP   = 10,    // min px robot should be "behind" ball wrt goal
     DELTA_TO_TARGET   = 200,    // temporary
     DEFEND_GOAL_THRESHOLD = 450, // temporary
+    TARGET_DEFENSE_DIST = 200,
 };
 
 // Helpers (predicates)
