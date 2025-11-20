@@ -180,6 +180,7 @@ static void penalty_mode(struct RoboAI *ai, double* smx, double* smy);
 static void chase_mode(struct RoboAI *ai, struct blob *blobs);
 
 static void soccer_test_mode(struct RoboAI *ai, double* smx, double* smy);
+static int check_soccer_state_behavior(struct RoboAI *ai, double *smx, double *smy);
 
 // Tuning knobs for penalty routine
 enum {
@@ -1018,7 +1019,7 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
   if (state >= 0 && state < 100) {
       // SOCCER mode
       //soccer_mode(ai, blobs);
-      soccer_test_mode(ai, blobs);
+      soccer_test_mode(ai, &stored_smx, &stored_smy);
   } else if (state >= 100 && state < 200) {
       // PENALTY mode
       penalty_mode(ai, &stored_smx, &stored_smy);
@@ -1087,6 +1088,25 @@ static int detect_obstacle(struct RoboAI *ai) {
   // return OBSTACLE_DETECTED or NO_OBSTACLE
   // for now, just return NO_OBSTACLE
   return NO_OBSTACLE;
+}
+
+// TODO!
+static int check_soccer_state_behavior(struct RoboAI *ai, double *smx, double *smy) {
+  // determine whether the ai should escape, defend, or attack (normal attack or edge attack)
+  // return 1 for escape, 2 for normal attack, 3 for edge attack, 4 for defend
+
+  bool escape = need_escape(ai, smx, smy);
+  if (escape) {
+    return 1; // escape
+  }
+
+  bool defend = need_defense(ai);
+  if (defend) {
+    return 4; // defend
+  }
+
+  // now don't consider edge attack, only do normal attack
+  return 2; // normal attack
 }
 
 static void soccer_test_mode(struct RoboAI *ai, double *smx, double *smy) {
@@ -2274,10 +2294,6 @@ void defend_goal(struct RoboAI *ai)
 }
 
 // skeleton for normal play mode in soccer
-
-#define ST_SOCCER_NORMAL_PLAY_EMPTY1      80
-#define ST_SOCCER_NORMAL_PLAY_EMPTY2      81
-#define ST_SOCCER_NORMAL_PLAY_DONE        82
 
 void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
   int state = ai->st.state;
