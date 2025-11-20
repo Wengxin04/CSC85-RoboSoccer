@@ -2853,5 +2853,91 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy)
   }   
 }
 
+double compute_target_x(double target_y, double line_slope, double line_intercept){
+    // line equation: y = mx + b  --> x = (y - b) / m
+    if (fabs(line_slope) < 1e-6) {
+        // vertical line case, slope is infinite
+        return NAN; // or some error value
+    }
+    return (target_y - line_intercept) / line_slope;
+}
+
+void compute_escape_rotate_target(struct RoboAI *ai, double* target_x, double* target_y){
+    double line_slope = 0.0;
+    double line_intercept = 0.0;
+    double x1 = ai->st.self->cx;;
+    double y1 = ai->st.self->cy;
+    double x2, y2 = 0.0;
+    // get 自己球门位置
+    compute_goal_center1(1-ai->st.side, &x2, &y2);
+
+    // 暂时不处理slope == infinite的情况 --> vertical line
+    // 不太可能有这种情况出现
+
+    line_slope = (y2 - y1) / (x2 - x1);
+    line_intercept = y1 - line_slope * x1;
+
+    double temp_x = compute_target_x(0, line_slope, line_intercept);
+    if (temp_x > 0 && temp_x < sx) {
+        *target_x = temp_x;
+        *target_y = 0;
+    } else {
+        temp_x = compute_target_x(sy, line_slope, line_intercept);
+        *target_x = temp_x;
+        *target_y = sy;
+    }
+}
+
+void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
+  int state = ai->st.state;
+  fprintf(stderr, "In SOCCER[ESCAPE] mode, current state: %d\n", state);
+  switch (state)
+  {
+  case ST_SOCCER_ESCAPE_ROTATE:
+    {
+      if (!need_escape(ai, smx, smy)) {
+        ai->st.state = ST_SOCCER_ESCAPE_DONE;
+        break;
+      }
+      double rotate_target_x, rotate_target_y;
+      compute_escape_rotate_target(ai, &rotate_target_x, &rotate_target_y);
+      if (!is_facing_target(ai, *smx, *smy, rotate_target_x, rotate_target_y)) {
+        fprintf(stderr, "Rotating to escape target\n");
+        double ang_err = compute_angle_error_to_target(ai, *smx, *smy, rotate_target_x, rotate_target_y);
+        rotate_to_blob(ai, *smx, *smy, rotate_target_x, rotate_target_y);
+        correct_motion_vector(smx, smy, ang_err);
+        ai->st.state = ST_SOCCER_ESCAPE_EMPTY;
+      }else {
+        ai->st.state = ST_SOCCER_ESCAPE_MOVE;
+        BT_motor_port_stop(LEFT_MOTOR, 0);
+        BT_motor_port_stop(RIGHT_MOTOR, 0);
+      }
+      break;
+    }
+  case ST_SOCCER_ESCAPE_EMPTY:
+      {
+        usleep(100*1000); // wait for a short while
+        ai->st.state = ST_SOCCER_ESCAPE_MOVE;
+        break;
+      }
+  case ST_SOCCER_ESCAPE_MOVE:
+    {
+      BT_drive(LEFT_MOTOR, RIGHT_MOTOR, -55, -50); // move backward
+      sleep(1); // move for 0.5 second
+      BT_motor_port_stop(LEFT_MOTOR, 0);
+      BT_motor_port_stop(RIGHT_MOTOR, 0);
+      ai->st.state = ST_SOCCER_ESCAPE_DONE;
+      break;
+    }
+  case ST_SOCCER_ESCAPE_DONE:
+    {
+      if (need_escape(ai, smx, smy)) {
+        ai->st.state = ST_SOCCER_ESCAPE_ROTATE;
+      } 
+      sleep(1); // wait for a second
+      break;
+    }  
+  }    
+}
 
 

@@ -74,6 +74,7 @@
 #define ST_SOCCER_ESCAPE_ROTATE 10
 #define ST_SOCCER_ESCAPE_MOVE 11
 #define ST_SOCCER_ESCAPE_DONE 12
+#define ST_SOCCER_ESCAPE_EMPTY 13
 
 // normal play substates: if the ball is kickable
 #define ST_SOCCER_ROTATE_TO_TARGET 20
