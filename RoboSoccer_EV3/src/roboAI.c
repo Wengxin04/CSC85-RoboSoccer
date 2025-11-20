@@ -2336,3 +2336,34 @@ void defend_goal(struct RoboAI *ai)
   // TODO: implement defend goal logic
   return;
 }
+
+void soccer_defense_mode(struct RoboAI *ai)
+{
+  int state = ai->st.state;
+  fprintf(stderr, "In SOCCER[DEFENSE] mode, current state: %d\n", state);
+
+  switch(state){
+    case ST_DEFENSE_ROTATE_TO_TARGET:
+      // TODOO: implement rotate to target logic
+      break;
+    case ST_DEFENSE_MOVE_TO_TARGET: 
+      // TODOO: implement move to target logic
+      break;  
+  }    
+}
+
+// TO CLOSE TO OBSTACLE 
+void soccer_escape_mode(struct RoboAI *ai)
+{
+  int state = ai->st.state;
+  fprintf(stderr, "In SOCCER[ESCAPE] mode, current state: %d\n", state);
+
+  switch(state){
+    case ST_ESCAPE_ROTATE:
+      // TODOO: implement rotate to target logic
+      break;
+    case ST_ESCAPE_STEP_BACK: 
+      // TODOO: implement move to target logic
+      break;  
+  }
+}
