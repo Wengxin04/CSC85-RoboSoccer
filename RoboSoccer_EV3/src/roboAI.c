@@ -1601,6 +1601,8 @@ void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, 
       return; 
     }
 
+    ang_err_deg = fmod(ang_err_deg + 180.0, 360.0) - 180.0; // wrap to [-180, 180]
+
     // init current gyro reading
     int gyro_angle = 0, gyro_rate = 0;
     BT_read_gyro(GYRO_PORT, 1, &gyro_angle, &gyro_rate);
@@ -1687,6 +1689,8 @@ void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, do
   // angle error to ball as P term
   double ang_err = compute_angle_error_to_target(ai, smx, smy, target_x, target_y);
   if (isnan(ang_err)) return;
+
+  ang_err = fmod(ang_err + 180.0, 360.0) - 180.0; // wrap to [-180, 180]
 
   // rate of angle change from gyro as D term
   int g_angle = 0, g_rate = 0;
