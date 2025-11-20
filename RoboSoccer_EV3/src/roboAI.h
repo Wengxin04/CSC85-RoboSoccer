@@ -66,10 +66,13 @@
 #define ST_SOCCER_DEFEND_GOAL 3		// Defend state - need a high priority
 
 // normal play substates: if the ball is kickable
-#define ST_SOCCER_ROTATE_AND_MOVE_TO_BALL 10
-#define ST_SOCCER_DRIBBLE_BALL 11
-#define ST_SOCCER_SWERVE_OBSTACLE 12
-#define ST_SOCCER_KICK_BALL 13
+#define ST_SOCCER_ROTATE_TO_TARGET 10
+#define ST_SOCCER_MOVE_TO_TARGET 11
+#define ST_SOCCER_ROTATE_TO_BALL 12
+#define ST_SOCCER_MOVE_TO_BALL 13
+#define ST_SOCCER_DRIBBLE_BALL 14
+#define ST_SOCCER_SWERVE_OBSTACLE 15
+#define ST_SOCCER_KICK_BALL 16
 
 // edge play substates: if the ball is near the edge of the field (exit edge play when the ball is back to normal play area)
 #define ST_SOCCER_ROTATE_TO_EDGE 20
@@ -213,7 +216,7 @@ void rotate_to_goal(struct RoboAI *ai);
 void rotate_step_blocking(double step_deg);
 void chase_rotate(struct RoboAI *ai, double smx, double smy);
 void compute_goal_center(struct RoboAI *ai, double *gcx, double *gcy);
-void rotate_and_move_to_ball(struct RoboAI *ai, double smx, double smy, double target_dist);
+void compute_target_position_soccer(struct RoboAI *ai, double *target_cx, double *target_cy);
 void dribble_ball_towards_goal(struct RoboAI *ai);
 int is_in_kicking_position(struct RoboAI *ai);
 void swerve_around_obstacle(struct RoboAI *ai, struct blob *obstacle);
