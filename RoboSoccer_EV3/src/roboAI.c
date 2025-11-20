@@ -2336,3 +2336,128 @@ void defend_goal(struct RoboAI *ai)
   // TODO: implement defend goal logic
   return;
 }
+
+// skeleton for normal play mode in soccer
+
+#define ST_SOCCER_NORMAL_PLAY_EMPTY1      80
+#define ST_SOCCER_NORMAL_PLAY_EMPTY2      81
+#define ST_SOCCER_NORMAL_PLAY_DONE        82
+
+void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
+  int state = ai->st.state;
+  switch (state) {
+    case ST_SOCCER_ROTATE_TO_TARGET:
+      {
+        double target_cx, target_cy;
+        compute_target_position_soccer(ai, &target_cx, &target_cy);
+        if (!is_facing_target(ai, smx, smy, target_cx, target_cy)) {
+          fprintf(stderr, "Rotating to face target in SOCCER mode\n");
+          double ang_err = compute_angle_error_to_target(ai, *smx, *smy, target_cx, target_cy);
+          rotate_to_blob(ai, smx, smy, target_cx, target_cy);
+          correct_motion_vector(smx, smy, ang_err);
+          ai->st.state = ST_SOCCER_NORMAL_PLAY_EMPTY1;
+        }
+        else {
+          ai->st.state = ST_SOCCER_MOVE_TO_TARGET;
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+        } 
+      break;
+      }
+    
+    case ST_SOCCER_NORMAL_PLAY_EMPTY1:
+      {
+        usleep(100*1000); // wait for a short while
+        ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
+        break;
+      }  
+    case ST_SOCCER_MOVE_TO_TARGET:
+      {
+        double target_cx, target_cy;
+        compute_target_position_soccer(ai, &target_cx, &target_cy);
+        if (!is_facing_target(ai, smx, smy, target_cx, target_cy)) {
+          fprintf(stderr, "Lost facing target in SOCCER mode, rotating to face\n");
+          ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
+          break;
+        }
+        if (!is_close_to_target(ai, target_cx, target_cy)) {
+          fprintf(stderr, "Moving to target in SOCCER mode\n");
+          move_to_blob(ai, *smx, *smy, target_cx, target_cy, TARGET_BALL_DIST);
+          usleep(100*1000); // wait for a short while
+        }
+        else {
+          fprintf(stderr, "Reached target in SOCCER mode, stopping\n");
+          ai->st.state = ST_SOCCER_ROTATE_TO_BALL;
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+        }
+      break;    
+      }
+    case ST_SOCCER_ROTATE_TO_BALL:
+      {
+        if (!is_facing_ball(ai, *smx, *smy)) {
+          fprintf(stderr, "Rotating to face ball in SOCCER mode\n");
+          double ang_err = compute_angle_error_to_target(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy);
+          rotate_to_blob(ai, smx, smy, ai->st.ball->cx, ai->st.ball->cy);
+          correct_motion_vector(smx, smy, ang_err);
+          ai->st.state = ST_SOCCER_NORMAL_PLAY_EMPTY2;
+        }
+        else {
+          fprintf(stderr, "Facing ball in SOCCER mode, ready to kick\n");
+          ai->st.state = ST_SOCCER_MOVE_TO_BALL;
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+        }
+        break;
+      }
+    case ST_SOCCER_NORMAL_PLAY_EMPTY2:
+      {
+        usleep(100*1000); // wait for a short while
+        ai->st.state = ST_SOCCER_ROTATE_TO_BALL;
+        break;
+      }
+    case ST_SOCCER_MOVE_TO_BALL:
+      {
+        if (!is_facing_ball(ai, *smx, *smy)) {
+          fprintf(stderr, "Lost facing ball in SOCCER mode, rotating to face\n");
+          ai->st.state = ST_SOCCER_ROTATE_TO_BALL;
+          break;
+        }
+        if (!is_close_to_ball(ai)) {
+          fprintf(stderr, "Moving to ball in SOCCER mode\n");
+          move_to_blob(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy, TARGET_BALL_DIST);
+          usleep(100*1000); // wait for a short while
+        }
+        else {
+          fprintf(stderr, "Reached ball in SOCCER mode, kicking\n");
+          ai->st.state = ST_SOCCER_KICK_BALL;
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+        }
+        break;    
+      }
+    case ST_SOCCER_KICK_BALL:
+      {
+        fprintf(stderr, "Kicking ball in SOCCER mode\n");
+        kick_ball(ai);
+        ai->st.state =  ST_SOCCER_NORMAL_PLAY_DONE;
+        break;
+      }
+    case ST_SOCCER_NORMAL_PLAY_DONE:
+      {
+        if (ai == NULL || ai->st.ball == NULL) {
+        fprintf(stderr, "Ball lost after kick, rotating to search\n");
+        BT_motor_port_stop(LEFT_MOTOR, 0);
+        BT_motor_port_stop(RIGHT_MOTOR, 0);
+        ai->st.state = ST_SOCCER_NORMAL_PLAY_DONE;
+         usleep(500*1000); // wait for a second
+        break;
+      }else {
+        fprintf(stderr, "Ball found after kick, resuming chase\n");
+        ai->st.state = ST_SOCCER_ROTATE_TO_BALL;
+      }
+      usleep(10*1000); // wait for a second
+      break;  
+      }  
+    
+}
