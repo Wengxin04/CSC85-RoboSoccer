@@ -61,6 +61,20 @@ int laggy=0;
 #define HISTORY_LEN 5  // Number of frames to remember
 #define MAX_MISSED_FRAMES 5 // Number of consecutive missed frames before considering blob lost
 
+double find_angle_err(double new_ang) {
+    static double ema = 0.0;
+    static int initialized = 0;
+
+    if (!initialized) {
+        ema = new_ang;
+        initialized = 1;
+    } else {
+        const double alpha = 0.7; // smoothing factor
+        ema = alpha * new_ang + (1.0 - alpha) * ema;
+    }
+    return ema;
+}
+
 struct BlobHistory {
     double cx[HISTORY_LEN];   // Center x history
     double cy[HISTORY_LEN];   // Center y history
@@ -85,14 +99,9 @@ struct TrackingHistory {
 
 struct TrackingHistory trackHist = {0};
 
-void update_blob_history(struct BlobHistory *h,
-                         int blob_detected,
-                         double cx, double cy,
-                         double vx, double vy,
-                         double mx, double my,
-                         double dx, double dy) {
+void update_blob_history(struct BlobHistory *h, struct blob *b) {
 
-    if (blob_detected) {
+    if (b != NULL) {
         // Reset missed-frame counter
         h->missed_frames = 0;
         h->is_active = 1;
@@ -110,11 +119,14 @@ void update_blob_history(struct BlobHistory *h,
         }
 
         // Store new sample
-        h->cx[0] = cx;
-        h->cy[0] = cy;
-
-        h->dx[0] = dx;
-        h->dy[0] = dy;
+        h->cx[0] = b->cx;
+        h->cy[0] = b->cy;
+        h->vx[0] = b->vx;
+        h->vy[0] = b->vy;
+        h->mx[0] = b->mx;
+        h->my[0] = b->my;
+        h->dx[0] = b->dx;
+        h->dy[0] = b->dy;
 
         if (h->count < HISTORY_LEN)
             h->count++;
@@ -184,8 +196,8 @@ static int check_soccer_state_behavior(struct RoboAI *ai, double *smx, double *s
 
 // Tuning knobs for penalty routine
 enum {
-    FACE_THRESH_DEG   = 15,    // tweak
-    ALIGN_THRESH_DEG  = 15,   // tweak
+    FACE_THRESH_DEG   = 7,    // tweak
+    ALIGN_THRESH_DEG  = 7,   // tweak
     TARGET_BALL_DIST  = 100,   // pixels; tweak to your scale
     TARGET_TARGET_DIST= 20,   // pixels; tweak to your scale
     CLOSE_BALL_SLACK  = 15,    // +/-
@@ -1711,16 +1723,218 @@ static void chase_mode(struct RoboAI *ai, struct blob *blobs) {
 
 // TODOO: implement the four functions below
 void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, double target_y) {
-  // we always rotate to the ball in penalty; keep signature for symmetry
-  // fast, blocking snap using gyro
-  quick_face_to_target(ai, smx, smy, target_x, target_y);
-  // non-blocking fallback (if quick_face was within threshold it returns immediately)
-  // nothing else needed here
+    if (ai->st.ball == NULL || ai->st.self == NULL) return;
+
+    // init current gyro reading
+    int gyro_angle = 0, gyro_rate = 0;
+    BT_read_gyro(GYRO_PORT, 1, &gyro_angle, &gyro_rate);
+    double curr_deg = (double)gyro_angle;
+
+    // compute angle error to ball
+    // compute target coordinate first
+    double ang_err_deg = compute_angle_error_to_target(ai, smx, smy, target_x, target_y);
+    if (isnan(ang_err_deg)) return;
+    if (fabs(ang_err_deg) < ALIGN_THRESH_DEG) return; 
+
+    double target_deg =  ang_err_deg; // >0 -> turn right, <0 -> turn left
+    const double THRESH = 5.0; // degrees
+    const double SPEED = 40.0;
+
+    fprintf(stderr, "quick_face_to_target: current angle %.2f, target angle %.2f, angle error %.2f\n",
+            curr_deg, target_deg, ang_err_deg);
+    // blocking turn to target using gyro
+    int rotate_flag = -1; // -1: not rotating, 0: to right , 1: to left
+    while (1)
+    {
+        BT_read_gyro(GYRO_PORT, 0, &gyro_angle, &gyro_rate);
+        curr_deg = (double)gyro_angle;
+        double err = target_deg - curr_deg;
+        while (err > 180.0) err -= 360.0;
+        while (err < -180.0) err += 360.0;
+
+        if (fabs(err) < THRESH)
+        {
+            fprintf(stderr, "quick_face_to_target: aligned to ball within %.2f degrees\n", THRESH);
+            BT_motor_port_stop(LEFT_MOTOR, 1);
+            BT_motor_port_stop(RIGHT_MOTOR, 1);
+            break;
+        }
+        // D
+        static double prev_ang_err = 0.0;
+        double ang_diff = err - prev_ang_err;
+        ang_diff = gyro_rate; 
+
+        // I 
+        static double prev_5_err_ang[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+        static int err_index = 0;
+        prev_5_err_ang[err_index] = err;
+        err_index = (err_index + 1) % 5;
+        double ang_intg = 0.0;
+        for (int i = 0; i < 5; i++) {
+            ang_intg += prev_5_err_ang[i];
+        }
+
+        // turn PID control for angle
+        const double Kp_ang = 3.0; // 要调参
+        const double Kd_ang = 1.5;// 要调参
+        const double Ki_ang = 0.0;// 要
+
+        double up_ang = Kp_ang * err;
+        double ud_ang = Kd_ang * ang_diff;
+        double ui_ang = Ki_ang * ang_intg;
+
+        double turn = up_ang + ud_ang + ui_ang; // pid
+
+        prev_ang_err = err;
+
+        // err > 0 -> BALL IS AT ITSELF RIGHT -> TURN RIGHT
+        // err < 0 -> BALL IS AT ITSELF LEFT  -> TURN LEFT
+        // TO DO: SOLOVE -180&180 CROSSING ISSUE
+        if (err > 0 && rotate_flag == -1)
+        {
+            rotate_flag = 0;
+            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(SPEED*1.1), (char)(-SPEED));  // turn right
+           fprintf(stderr, "quick_face_to_target: turning right with angle %.2f and target angle %.2f\n", curr_deg, target_deg);
+        }
+        else if (err < 0 && rotate_flag == -1)
+        {
+            rotate_flag = 1;
+            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(-SPEED*1.1), (char)(SPEED));  // turn left
+            fprintf(stderr, "quick_face_to_target: turning left with angle %.2f and target angle %.2f\n", curr_deg, target_deg);
+        }
+        usleep(10000); // 10ms
+    }
+    BT_motor_port_stop(LEFT_MOTOR, 1);
+    BT_motor_port_stop(RIGHT_MOTOR, 1);
 }
 
 void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, double target_y, double target_dist) {
-    // frame-driven PD approach; stops itself when close
-    approach_to_target(ai, smx, smy, target_x, target_y, target_dist);
+        if (!ai || !ai->st.self) return;
+
+  // angle error to ball as P term
+  double ang_err = compute_angle_error_to_target(ai, smx, smy, target_x, target_y);
+  ang_err = find_angle_err(ang_err);  // noise handling
+  if (isnan(ang_err)) return;
+
+  ang_err = fmod(ang_err + 180.0, 360.0) - 180.0; // wrap to [-180, 180]
+
+  // rate of angle change from gyro as D term
+  int g_angle = 0, g_rate = 0;
+  BT_read_gyro(GYRO_PORT, 0, &g_angle, &g_rate);
+  double gyro_rate_scaled = ((double)g_rate) / 60.0; // scale 值要调，不确定要不要
+
+  // use static variable to store previous angle error for D term image自身的d项，有需要再加吧
+  // D
+  static double prev_ang_err = 0.0;
+  double ang_diff = ang_err - prev_ang_err;
+  // ang_diff = g_rate; 
+
+  // I 
+  static double prev_5_err_ang[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+  static int err_index = 0;
+  prev_5_err_ang[err_index] = ang_err;
+  err_index = (err_index + 1) % 5;
+  double ang_intg = 0.0;
+  for (int i = 0; i < 5; i++) {
+      ang_intg += prev_5_err_ang[i];
+  }
+
+  // turn PID control for angle
+  const double Kp_ang = 10.0; // 要调参
+  const double Kd_ang = 5.5;// 要调参
+  const double Ki_ang = 0.1;// 要
+
+  double up_ang = Kp_ang * ang_err;
+  double ud_ang = Kd_ang * ang_diff;
+  double ui_ang = Ki_ang * ang_intg;
+
+  double turn = up_ang + ud_ang + ui_ang; // pid
+
+  prev_ang_err = ang_err;
+
+  // turn limits
+  // if (turn > 12) turn = 12;
+  // if (turn < -12) turn = -12;
+
+  // double turn = 0.0; // 先不转了，直接走直线接近球
+
+  // distance to ball
+  // double target_dist = TARGET_BALL_DIST;  // target distance to ball // 要调参
+  // P 
+  double dist_err = 0.0, d_dist = 0.0;
+  double dist = compute_distance_error(ai, target_dist, &dist_err, &d_dist, target_x, target_y);
+
+  // D
+  double prev_dist_err = 0.0;
+  double dist_diff = dist_err - prev_dist_err;
+
+  // I
+  static double prev_5_err_dist[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+  static int dist_err_index = 0;
+  prev_5_err_dist[dist_err_index] = prev_dist_err;
+  dist_err_index = (dist_err_index + 1) % 5;
+  double dist_intg = 0.0;
+  for (int i = 0; i < 5; i++) {
+      dist_intg += prev_5_err_dist[i];
+  }
+
+  // turn PID control for distance
+  const double Kp_dist = 0.6; // 要调参
+  const double Kd_dist = 0.3;// 要调参
+  const double Ki_dist = 0.0;// 要
+
+  double up_dist = Kp_dist * dist_err;
+  double ud_dist = Kd_dist * dist_diff;
+  double ui_dist = Ki_dist * dist_intg;
+  
+  double forward_speed = up_dist + ud_dist + ui_dist; // pid
+
+  prev_dist_err = dist_err;
+
+  // forward PD control --> 接近时减速
+  // const double Kp_fwd = 0.1; // 要调参
+  // const double Kd_fwd = 0;// 要调参
+  // double forward_speed = Kp_fwd * dist_err - Kd_fwd * d_dist; // pd
+
+  // speed limits
+  // if (forward_speed > 100) forward_speed = 100;
+  // if (forward_speed < 30) forward_speed = 30;
+
+  // compute left/right motor speeds
+  // turn = 0.0; // 先不转了，直接走直线接近球
+  if (forward_speed > 100) forward_speed = 100;
+
+  int left  = (forward_speed + turn) * 1.1; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
+  int right = (forward_speed - turn) * 0.9; // wallahi 调整
+
+  // slow rate to prevent sudden changes
+  static int prev_left, prev_right;
+  if (left < prev_left - 20) left = prev_left - 20;
+  if (left > prev_left + 20) left = prev_left + 20;
+  if (right < prev_right - 20) right = prev_right - 20;
+  if (right > prev_right + 20) right = prev_right + 20;
+  prev_left = left;
+  prev_right = right;
+
+  // deadband - ensure minimum speed to overcome friction
+  if (left < -100) left = -100;
+  if (left > 100) left = 100;
+  if (right < -100) right = -100;
+  if (right > 100) right = 100;
+
+
+  // stop condition
+  // 可以之后增加连续停止的判定，防止误停？
+  if (dist < target_dist + 5.0) {
+      BT_all_stop(0);
+      return;
+  }
+
+  fprintf(stderr, "approach_to_target: dist %.2f (err %.2f, d %.2f), fwd %.2f, %.2f, %.2f, turn %.2f, %.2f, %.2f, %.2f, left %d, right %d, ang_err %.2f\n",
+          dist, dist_err, d_dist, forward_speed, up_dist, ud_dist, turn, up_ang, ud_ang, ui_ang, left, right, ang_err);
+
+  BT_drive(LEFT_MOTOR, RIGHT_MOTOR, left, right);
+  usleep(1000); // 10ms
 }
 
 // void align_to_goal_with_ball(struct RoboAI *ai, double smx, double smy) {
@@ -1947,118 +2161,13 @@ double compute_distance_error(struct RoboAI *ai,
 // 调用前后检查角度！ 如果面向球角度差小于10度则 --> 进入下一个state
 // 这是使用gryo的阻塞的！快速转向函数
 // 调用后机器人应当面向球, 但此时的机器人位置可能有偏差(并不是精准朝向球的位置)（不管，依靠approach的pd调整！）
-void quick_face_to_target(struct RoboAI *ai, double smx, double smy, double target_x, double target_y)
-{
-    if (ai->st.ball == NULL || ai->st.self == NULL) return;
-
-    // init current gyro reading
-    int gyro_angle = 0, gyro_rate = 0;
-    BT_read_gyro(GYRO_PORT, 1, &gyro_angle, &gyro_rate);
-    double curr_deg = (double)gyro_angle;
-
-    // compute angle error to ball
-    // compute target coordinate first
-    double ang_err_deg = compute_angle_error_to_target(ai, smx, smy, target_x, target_y);
-    if (isnan(ang_err_deg)) return;
-    if (fabs(ang_err_deg) < ALIGN_THRESH_DEG) return; 
-
-    double target_deg =  ang_err_deg; // >0 -> turn right, <0 -> turn left
-    const double THRESH = 5.0; // degrees
-    const double SPEED = 40.0;
-    fprintf(stderr, "quick_face_to_target: current angle %.2f, target angle %.2f, angle error %.2f\n",
-            curr_deg, target_deg, ang_err_deg);
-    // blocking turn to target using gyro
-    int rotate_flag = -1; // -1: not rotating, 0: to right , 1: to left
-    while (1)
-    {
-        BT_read_gyro(GYRO_PORT, 0, &gyro_angle, &gyro_rate);
-        curr_deg = (double)gyro_angle;
-        double err = target_deg - curr_deg;
-        while (err > 180.0) err -= 360.0;
-        while (err < -180.0) err += 360.0;
-
-        if (fabs(curr_deg) > 200.0)
-        {
-            fprintf(stderr, "quick_face_to_target: gyro angle out of range %.2f degrees, stopping\n", curr_deg);
-            BT_motor_port_stop(LEFT_MOTOR, 1);
-            BT_motor_port_stop(RIGHT_MOTOR, 1);
-            break;
-        }
-
-        if (fabs(err) < THRESH)
-        {
-            fprintf(stderr, "quick_face_to_target: aligned to ball within %.2f degrees\n", THRESH);
-            BT_motor_port_stop(LEFT_MOTOR, 1);
-            BT_motor_port_stop(RIGHT_MOTOR, 1);
-            break;
-        }
-        // target < 0 -> target IS AT ITSELF left -> TURN left -> curr_deg is always negative
-        // target > 0 -> target IS AT ITSELF right  -> TURN right -> curr_deg is always positive
-        // so err  < 0 -> turn left, err > 0 -> turn right
-        // TO DO: SOLOVE -180&180 CROSSING ISSUE
-        if (err > 0 && rotate_flag == -1)
-        {
-            rotate_flag = 0;
-            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(SPEED*1.1), (char)(-SPEED));  // turn right
-           fprintf(stderr, "quick_face_to_target: turning right with angle %.2f and target angle %.2f\n", curr_deg, target_deg);
-        }
-        else if (err < 0 && rotate_flag == -1)
-        {
-            rotate_flag = 1;
-            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(-SPEED*1.1), (char)(SPEED));  // turn left
-            fprintf(stderr, "quick_face_to_target: turning left with angle %.2f and target angle %.2f\n", curr_deg, target_deg);
-        }
-       // fprintf(stderr, "quick_face_to_target: current angle %.2f, target angle %.2f, angle error %.2f\n",
-        //         curr_deg, target_deg,  err);
-        usleep(10000); // 10ms
-    }
-    BT_motor_port_stop(LEFT_MOTOR, 1);
-    BT_motor_port_stop(RIGHT_MOTOR, 1);
-}
+// used to be quick turn to target
 
 // assume 已经朝向了球， 如果没有朝向球（角度差 > ?? 12度 ）返回上一个state(使用gryo 旋转)
 // 先init gryo sensor 在第一次调用前
 // non- blocking & frame - driven
 // 根据机器人和球的位置动态调整左右motor，是机器人可以更精准地接近球
-void approach_to_target(struct RoboAI *ai, double smx, double smy, double target_x, double target_y, double target_dist)
-{
-    if (!ai || !ai->st.self || !ai->st.ball) return;
-
-   double turn = 0.0; // 先不转了，直接走直线接近球
-    // distance to ball
-    // double target_dist = TARGET_BALL_DIST;  // target distance to ball // 要调参
-    double dist_err = 0.0, d_dist = 0.0;
-    double dist = compute_distance_error(ai, target_dist, &dist_err, &d_dist, target_x, target_y);
-
-    // forward PD control --> 接近时减速
-    const double Kp_fwd = 0.1; // 要调参
-    const double Kd_fwd = 0;// 要调参
-    double forward_speed = Kp_fwd * dist_err - Kd_fwd * d_dist; // pd
-
-    // speed limits
-    if (forward_speed > 50) forward_speed = 50;
-    if (forward_speed < 30) forward_speed = 30;
-
-    // compute left/right motor speeds
-    int left  = (forward_speed - turn) * 1.3; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
-    int right = (forward_speed + turn) * 0.9;
-
-    // deadband - ensure minimum speed to overcome friction
-    if (fabs(left)  < 8) left  = (left>=0?8:-8);
-    if (fabs(right) < 8) right = (right>=0?8:-8);
-
-    // stop condition
-    // 可以之后增加连续停止的判定，防止误停？
-    if (dist < target_dist + 5.0) {
-        BT_all_stop(0);
-        return;
-    }
-
-    fprintf(stderr, "approach_to_target: dist %.2f (err %.2f, d %.2f), fwd %.2f, turn %.2f, left %d, right %d\n",
-            dist, dist_err, d_dist, forward_speed, turn, left, right);
-
-    BT_drive(LEFT_MOTOR, RIGHT_MOTOR, left, right);
-}
+// used to be approach to target
 
 /// 使机器人面向对方球门
 // 校准机身位置！
