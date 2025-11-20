@@ -1996,112 +1996,42 @@ void quick_face_to_target(struct RoboAI *ai, double smx, double smy, double targ
 // 根据机器人和球的位置动态调整左右motor，是机器人可以更精准地接近球
 void approach_to_target(struct RoboAI *ai, double smx, double smy, double target_x, double target_y, double target_dist)
 {
-  if (!ai || !ai->st.self || !ai->st.ball) return;
+    if (!ai || !ai->st.self || !ai->st.ball) return;
 
-  // angle error to ball as P term
-  double ang_err = compute_angle_error_to_target(ai, smx, smy, target_x, target_y);
-  if (isnan(ang_err)) return;
+   double turn = 0.0; // 先不转了，直接走直线接近球
+    // distance to ball
+    // double target_dist = TARGET_BALL_DIST;  // target distance to ball // 要调参
+    double dist_err = 0.0, d_dist = 0.0;
+    double dist = compute_distance_error(ai, target_dist, &dist_err, &d_dist, target_x, target_y);
 
-  // rate of angle change from gyro as D term
-  int g_angle = 0, g_rate = 0;
-  BT_read_gyro(GYRO_PORT, 0, &g_angle, &g_rate);
-  double gyro_rate_scaled = ((double)g_rate) / 60.0; // scale 值要调，不确定要不要
+    // forward PD control --> 接近时减速
+    const double Kp_fwd = 0.1; // 要调参
+    const double Kd_fwd = 0;// 要调参
+    double forward_speed = Kp_fwd * dist_err - Kd_fwd * d_dist; // pd
 
-  // use static variable to store previous angle error for D term image自身的d项，有需要再加吧
-  // D
-  static double prev_ang_err = 0.0;
-  double ang_diff = ang_err - prev_ang_err;
+    // speed limits
+    if (forward_speed > 50) forward_speed = 50;
+    if (forward_speed < 30) forward_speed = 30;
 
-  // I 
-  static double prev_5_err_ang[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
-  static int err_index = 0;
-  prev_5_err_ang[err_index] = prev_ang_err;
-  err_index = (err_index + 1) % 5;
-  double ang_intg = 0.0;
-  for (int i = 0; i < 5; i++) {
-      ang_intg += prev_5_err_ang[i];
-  }
+    // compute left/right motor speeds
+    int left  = (forward_speed - turn) * 1.3; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
+    int right = (forward_speed + turn) * 0.9;
 
-  // turn PID control for angle
-  const double Kp_ang = 1.6; // 要调参
-  const double Kd_ang = 7.5;// 要调参
-  const double Ki_ang = 0.0;// 要
+    // deadband - ensure minimum speed to overcome friction
+    if (fabs(left)  < 8) left  = (left>=0?8:-8);
+    if (fabs(right) < 8) right = (right>=0?8:-8);
 
-  double up_ang = Kp_ang * ang_err;
-  double ud_ang = Kd_ang * ang_diff;
-  double ui_ang = Ki_ang * ang_intg;
-  
-  double turn = up_ang - ud_ang + ui_ang; // pid
+    // stop condition
+    // 可以之后增加连续停止的判定，防止误停？
+    if (dist < target_dist + 5.0) {
+        BT_all_stop(0);
+        return;
+    }
 
-  prev_ang_err = ang_err;
+    fprintf(stderr, "approach_to_target: dist %.2f (err %.2f, d %.2f), fwd %.2f, turn %.2f, left %d, right %d\n",
+            dist, dist_err, d_dist, forward_speed, turn, left, right);
 
-  // turn limits
-  // if (turn > 12) turn = 12;
-  // if (turn < -12) turn = -12;
-
-  // double turn = 0.0; // 先不转了，直接走直线接近球
-
-  // distance to ball
-  // double target_dist = TARGET_BALL_DIST;  // target distance to ball // 要调参
-  // P 
-  double dist_err = 0.0, d_dist = 0.0;
-  double dist = compute_distance_error(ai, target_dist, &dist_err, &d_dist, target_x, target_y);
-
-  // D
-  double prev_dist_err = 0.0;
-  double dist_diff = dist_err - prev_dist_err;
-
-  // I
-  static double prev_5_err_dist[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
-  static int dist_err_index = 0;
-  prev_5_err_dist[dist_err_index] = prev_dist_err;
-  dist_err_index = (dist_err_index + 1) % 5;
-  double dist_intg = 0.0;
-  for (int i = 0; i < 5; i++) {
-      dist_intg += prev_5_err_dist[i];
-  }
-
-  // turn PID control for distance
-  const double Kp_dist = 0.1; // 要调参
-  const double Kd_dist = 0;// 要调参
-  const double Ki_dist = 0.0;// 要
-
-  double up_dist = Kp_dist * dist_err;
-  double ud_dist = Kd_dist * dist_diff;
-  double ui_dist = Ki_dist * dist_intg;
-  
-  double forward_speed = up_dist - ud_dist + ui_dist; // pid
-
-  prev_dist_err = dist_err;
-
-  // forward PD control --> 接近时减速
-  // const double Kp_fwd = 0.1; // 要调参
-  // const double Kd_fwd = 0;// 要调参
-  // double forward_speed = Kp_fwd * dist_err - Kd_fwd * d_dist; // pd
-
-  // speed limits
-  if (forward_speed > 50) forward_speed = 50;
-  if (forward_speed < 30) forward_speed = 30;
-
-  // compute left/right motor speeds
-  int left  = (forward_speed - turn) * 1.3; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
-  int right = (forward_speed + turn) * 0.9; // wallahi 调整
-
-  // deadband - ensure minimum speed to overcome friction
-  if (fabs(left)  < 8) left  = (left>=0?8:-8);
-  if (fabs(right) < 8) right = (right>=0?8:-8);
-
-  // stop condition
-  // 可以之后增加连续停止的判定，防止误停？
-  if (dist < target_dist + 5.0) {
-      BT_all_stop(0);
-      return;
-  }
-
-  fprintf(stderr, "approach_to_target: dist %.2f (err %.2f, d %.2f), fwd %.2f, turn %.2f, left %d, right %d\n",
-          dist, dist_err, d_dist, forward_speed, turn, left, right);
-
-  BT_drive(LEFT_MOTOR, RIGHT_MOTOR, left, right);
+    BT_drive(LEFT_MOTOR, RIGHT_MOTOR, left, right);
 }
 
 /// 使机器人面向对方球门
