@@ -1128,19 +1128,21 @@ static int check_soccer_state_behavior(struct RoboAI *ai, double *smx, double *s
 }
 
 static void soccer_test_mode(struct RoboAI *ai, double *smx, double *smy) {
-  int behavior = check_soccer_state_behavior(ai, smx, smy);
-  fprintf(stderr, "In SOCCER test mode, behavior: %d\n", behavior);
-  if (behavior == NORMAL_ATTACK_BEHAVIOR) {
-    fprintf(stderr, "Attacking!\n");
-    soccer_normal_play_mode(ai, smx, smy);
-    return;
-  } else if (behavior == DEFEND_BEHAVIOR) {
-    fprintf(stderr, "Defending goal\n");
-    soccer_defense_mode(ai, smx, smy);
-    return;
-  }
+  // int behavior = check_soccer_state_behavior(ai, smx, smy);
+  // fprintf(stderr, "In SOCCER test mode, behavior: %d\n", behavior);
+  // if (behavior == NORMAL_ATTACK_BEHAVIOR) {
+  //   fprintf(stderr, "Attacking!\n");
+  //   soccer_normal_play_mode(ai, smx, smy);
+  //   return;
+  // } else if (behavior == DEFEND_BEHAVIOR) {
+  //   fprintf(stderr, "Defending goal\n");
+  //   soccer_defense_mode(ai, smx, smy);
+  //   return;
+  // }
+
   // soccer_normal_play_mode(ai, smx, smy);
   // soccer_defense_mode(ai, smx, smy);
+  soccer_escape_mode(ai, smx, smy);
 }
 
 static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
@@ -2913,6 +2915,7 @@ void compute_escape_rotate_target(struct RoboAI *ai, double* target_x, double* t
 void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
   int state = ai->st.state;
   fprintf(stderr, "In SOCCER[ESCAPE] mode, current state: %d\n", state);
+  ai->st.state = ST_SOCCER_ESCAPE_ROTATE; // default next state
   switch (state)
   {
   case ST_SOCCER_ESCAPE_ROTATE:
