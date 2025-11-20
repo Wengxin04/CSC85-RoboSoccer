@@ -2350,10 +2350,10 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
       {
         double target_cx, target_cy;
         compute_target_position_soccer(ai, &target_cx, &target_cy);
-        if (!is_facing_target(ai, smx, smy, target_cx, target_cy)) {
+        if (!is_facing_target(ai, *smx, *smy, target_cx, target_cy)) {
           fprintf(stderr, "Rotating to face target in SOCCER mode\n");
           double ang_err = compute_angle_error_to_target(ai, *smx, *smy, target_cx, target_cy);
-          rotate_to_blob(ai, smx, smy, target_cx, target_cy);
+          rotate_to_blob(ai, *smx, *smy, target_cx, target_cy);
           correct_motion_vector(smx, smy, ang_err);
           ai->st.state = ST_SOCCER_NORMAL_PLAY_EMPTY1;
         }
@@ -2375,7 +2375,7 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
       {
         double target_cx, target_cy;
         compute_target_position_soccer(ai, &target_cx, &target_cy);
-        if (!is_facing_target(ai, smx, smy, target_cx, target_cy)) {
+        if (!is_facing_target(ai, *smx, *smy, target_cx, target_cy)) {
           fprintf(stderr, "Lost facing target in SOCCER mode, rotating to face\n");
           ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
           break;
@@ -2395,10 +2395,10 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
       }
     case ST_SOCCER_ROTATE_TO_BALL:
       {
-        if (!is_facing_ball(ai, *smx, *smy)) {
+        if (!is_facing_target(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy)) {
           fprintf(stderr, "Rotating to face ball in SOCCER mode\n");
           double ang_err = compute_angle_error_to_target(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy);
-          rotate_to_blob(ai, smx, smy, ai->st.ball->cx, ai->st.ball->cy);
+          rotate_to_blob(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy);
           correct_motion_vector(smx, smy, ang_err);
           ai->st.state = ST_SOCCER_NORMAL_PLAY_EMPTY2;
         }
@@ -2418,12 +2418,12 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
       }
     case ST_SOCCER_MOVE_TO_BALL:
       {
-        if (!is_facing_ball(ai, *smx, *smy)) {
+        if (!is_facing_target(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy)) {
           fprintf(stderr, "Lost facing ball in SOCCER mode, rotating to face\n");
           ai->st.state = ST_SOCCER_ROTATE_TO_BALL;
           break;
         }
-        if (!is_close_to_ball(ai)) {
+        if (!is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
           fprintf(stderr, "Moving to ball in SOCCER mode\n");
           move_to_blob(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy, TARGET_BALL_DIST);
           usleep(100*1000); // wait for a short while
@@ -2459,5 +2459,5 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
       usleep(10*1000); // wait for a second
       break;  
       }  
-    
+  }
 }
