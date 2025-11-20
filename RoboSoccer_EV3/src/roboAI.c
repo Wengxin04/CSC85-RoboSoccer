@@ -2566,8 +2566,6 @@ double compute_opp_distance_to_target(struct RoboAI *ai, double target_cx, doubl
 
 static void compute_goal_center1(int side, double *gcx, double *gcy)
 {
-  if (!ai || !ai->st.self || !gcx || !gcy) return;
-
   // left goal center is: (0, sy/2)
   // right goal center is: (sx, sy/2)
 
