@@ -63,6 +63,7 @@
 #define ST_SOCCER_INIT 0              // Initial state
 #define ST_SOCCER_NORMAL_PLAY 1      // Normal play state
 #define ST_SOCCER_EDGE_PLAY 2		// Edge play state
+#define ST_SOCCER_DEFEND_GOAL 3		// Defend state - need a high priority
 
 // normal play substates: if the ball is kickable
 #define ST_SOCCER_ROTATE_AND_MOVE_TO_BALL 10
@@ -76,6 +77,9 @@
 #define ST_SOCCER_ROTATE_TO_KICK 22
 
 #define ST_SOCCER_DONE 99             // Soccer done
+
+#define ST_PENALTY_EMPTY1 120
+#define ST_PENALTY_EMPTY2 121
 
 struct AI_data{
 	// This data structure is used to hold all data relevant to the state of the AI.
@@ -208,5 +212,12 @@ void approach_to_target(struct RoboAI *ai, double smx, double smy, double target
 void rotate_to_goal(struct RoboAI *ai);
 void rotate_step_blocking(double step_deg);
 void chase_rotate(struct RoboAI *ai, double smx, double smy);
+void compute_goal_center(struct RoboAI *ai, double *gcx, double *gcy);
+void rotate_and_move_to_ball(struct RoboAI *ai, double smx, double smy, double target_dist);
+void dribble_ball_towards_goal(struct RoboAI *ai);
+int is_in_kicking_position(struct RoboAI *ai);
+void swerve_around_obstacle(struct RoboAI *ai, struct blob *obstacle);
+void defend_goal(struct RoboAI *ai);
+double correct_motion_vector(double* smx, double*smy, double rotate_angle_deg);
 
 #endif
