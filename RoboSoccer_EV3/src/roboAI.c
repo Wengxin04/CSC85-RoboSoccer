@@ -1801,7 +1801,7 @@ void compute_target_position_soccer(struct RoboAI *ai, double *target_cx, double
   }
 
   // determine target_cx based on goal position
-  if (gx == 0.0) {
+  if (gx < bx) {
     // goal is at left
     *target_cx = bx + x;
   } else {
