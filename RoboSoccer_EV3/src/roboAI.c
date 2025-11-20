@@ -2461,7 +2461,7 @@ static bool check_anything_lost(struct RoboAI *ai)
   return false;
 }
 
-void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
+void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
   int state = ai->st.state;
   static double prev_rotate_deg = 0.0;
 
