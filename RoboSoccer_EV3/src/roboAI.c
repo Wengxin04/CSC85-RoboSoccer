@@ -187,7 +187,8 @@ enum {
     TARGET_TARGET_DIST= 20,   // pixels; tweak to your scale
     CLOSE_BALL_SLACK  = 15,    // +/-
     BEHIND_BALL_GAP   = 10,    // min px robot should be "behind" ball wrt goal
-    DELTA_TO_TARGET   = 350    // temporary
+    DELTA_TO_TARGET   = 350,    // temporary
+    DEFEND_GOAL_THRESHOLD = 450, // temporary
 };
 
 // Helpers (predicates)
@@ -1054,6 +1055,27 @@ static int last_state = -1; // use to restore state after obstacle avoidance
 static int check_ball_position(struct RoboAI *ai) {
   // TODOO: implement function to check ball position
   // return BALL_IN_ATTACK_ZONE or BALL_NOT_IN_ATTACK_ZONE or BALL_VERY_CLOSE_TO_GOAL
+  double bx, by;
+  bx = ai->st.ball->cx;
+  by = ai->st.ball->cy;
+
+  // ??? Need to reconsider when to defend, right now just consider when ball is very close to goal
+  // check whether ball is very close to our goal
+  double gx, gy; // goal position
+  compute_goal_center(ai, &gx, &gy);
+  double dist_to_goal = sqrt((bx - gx) * (bx - gx) + (by - gy) * (by - gy));
+  if (dist_to_goal < DEFEND_GOAL_THRESHOLD) {
+    return BALL_VERY_CLOSE_TO_GOAL;
+  }
+
+  // check whether ball is in edge or attack zone
+  // sx and sy are length and width of the field respectively
+  // random values for now: 200 pixels from edge for y, 400 pixels from edge for x
+  if (by < 200 || by > (sy - 200) || bx < 400 || bx > (sx - 400)) {
+    return BALL_NOT_IN_ATTACK_ZONE; // ball is in edge
+  } else {
+    return BALL_IN_ATTACK_ZONE; // ball is in attack zone
+  }
 }
 
 static int detect_obstacle(struct RoboAI *ai) {
