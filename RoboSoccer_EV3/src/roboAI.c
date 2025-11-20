@@ -1470,7 +1470,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       if (!is_facing_target(ai, *stored_smx, *stored_smy, target_cx, target_cy)) {
         fprintf(stderr, "Rotating to face target in PENALTY mode\n");
         rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
-         BT_motor_port_stop(LEFT_MOTOR, 0);
+        BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
         correct_motion_vector(stored_smx, stored_smy, angle_error);
         ai->st.state = ST_PENALTY_EMPTY1;
@@ -1563,8 +1563,8 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       else if (!is_close_to_ball(ai, b_cx, b_cy)) {
        // fprintf(stderr, "Moving to ball in PENALTY mode\n");
         move_to_blob(ai, *stored_smx, *stored_smy, b_cx, b_cy, TARGET_BALL_DIST);
-        *stored_smx = ai->st.smx;
-        *stored_smy = ai->st.smy;
+        //*stored_smx = ai->st.smx;
+        // *stored_smy = ai->st.smy;
         // 好像是motion vector 的错误导致角度计算又有问题.....
         // 实在不行这里stored 不更新了，或者加noise handling！
         sleep(1); // avoid smx/smy being zero/错误计算
@@ -1984,6 +1984,8 @@ void quick_face_to_target(struct RoboAI *ai, double smx, double smy, double targ
             BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(-SPEED*1.1), (char)(SPEED));  // turn left
             fprintf(stderr, "quick_face_to_target: turning left with angle %.2f and target angle %.2f\n", curr_deg, target_deg);
         }
+       // fprintf(stderr, "quick_face_to_target: current angle %.2f, target angle %.2f, angle error %.2f\n",
+        //         curr_deg, target_deg,  err);
         usleep(10000); // 10ms
     }
     BT_motor_port_stop(LEFT_MOTOR, 1);
