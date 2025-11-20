@@ -39,15 +39,19 @@ bool is_close_to_ball(struct RoboAI *ai, double ball_cx, double ball_cy) {
 
 // compute functions 
 
-void compute_goal_center(struct RoboAI *ai, double *gcx, double *gcy)
+// 新增！
+
+// side = 0 --> give right goal
+// side = 1 --> give left goal
+// default case can use ai->st.side
+void compute_goal_center(int side, double *gcx, double *gcy)
 {
   if (!ai || !ai->st.self || !gcx || !gcy) return;
 
   // left goal center is: (0, sy/2)
   // right goal center is: (sx, sy/2)
 
-  int our_side = ai->st.side; // 0 for left, 1 for right
-  if (our_side == 0) {
+  if (side == 0) {
     // left side, so opponent goal is right
     *gcx = sx; // right edge
     *gcy = sy / 2.0;
@@ -58,30 +62,39 @@ void compute_goal_center(struct RoboAI *ai, double *gcx, double *gcy)
   }
 }
 
-void compute_target_position(struct RoboAI *ai, double *target_cx, double *target_cy)
+void get_out_goal(double *gcx, double *gcy)
 {
-  // use self's x and ball's y as target for simplicity
-  if (!ai || !ai->st.self || !ai->st.ball || !target_cx || !target_cy) return;
-  *target_cx = ai->st.self->cx;
-  *target_cy = ai->st.ball->cy;
+    compute_goal_center(ai->st.side, gcx, gcy);
 }
 
-void compute_target_position_soccer(struct RoboAI *ai, double *target_cx, double *target_cy)
+// for goal
+void compute_target_position_soccer(struct RoboAI *ai, double *target_cx, double *target_cy){
+    double gx, gy;
+    get_out_goal(&gx, &gy);
+    compute_target_pos_general(ai, gx, gy,  DELTA_TO_TARGET, target_cx, target_cy);
+}
+
+#define DELTA_TO_OPP 500
+// for obstacle avoidance in soccer mode
+void compute_obstacle_avoidance_target(struct RoboAI *ai, double *target_cx, double *target_cy){
+   compute_target_pos_general(ai, ai->st.opp->cx, ai->st.opp->cy,  DELTA_TO_OPP, target_cx, target_cy);
+}
+
+// default side using ai->st.side for 球门
+void compute_target_pos_general(struct RoboAI *ai, double gx, double gy, double delta, double *target_cx, double *target_cy)
 {
   // use ball's position as target for simplicity
   if (!ai || !ai->st.self || !ai->st.ball || !target_cx || !target_cy) return;
   
   double bx = ai->st.ball->cx;
   double by = ai->st.ball->cy;
-  double gx, gy;
-  compute_goal_center(ai, &gx, &gy);
 
   double dx = bx - gx;
   double dy = by - gy;
   double L = sqrt(dx*dx + dy*dy);
 
-  double x = DELTA_TO_TARGET * fabs(dx) / L;;
-  double y = DELTA_TO_TARGET * fabs(dy) / L;
+  double x = delta * fabs(dx) / L;;
+  double y = delta * fabs(dy) / L;
 
   // determine target_cy based on ball position relative to goal
   if (by < gy) {
@@ -93,7 +106,7 @@ void compute_target_position_soccer(struct RoboAI *ai, double *target_cx, double
   }
 
   // determine target_cx based on goal position
-  if (gx == 0.0) {
+  if (gx < bx) {
     // goal is at left
     *target_cx = bx + x;
   } else {
@@ -101,6 +114,120 @@ void compute_target_position_soccer(struct RoboAI *ai, double *target_cx, double
     *target_cx = bx - x;
   }
 }
+
+
+////new things for opp compute
+
+double compute_opp_angle_diff_to_target(struct RoboAI *ai, double target_x, double target_y)
+{
+    if (!ai || !ai->st.opp) return;
+
+    // position deltas
+    double dx = target_x - ai->st.opp->cx;
+    double dy = target_y - ai->st.opp->cy;
+    double ang_to_target = atan2(dy, dx);
+
+    double hdx = ai->st.odx;
+    double hdy = ai->st.ody;
+
+    double ang_opp = atan2(hdy, hdx);
+
+    // angle error
+    double ang_err = ang_to_target - ang_opp;
+
+    // normalized to [-pi/2, pi/2]
+    // 我们只关心opp direction vector 所在直线和opp-target vector 的夹角
+    // first normalize to [-pi, pi]
+    while (ang_err >  M_PI) ang_err -= 2*M_PI;
+    while (ang_err < -M_PI) ang_err += 2*M_PI;
+    // reduce to [-pi/2, pi/2] because direction and its opposite represent the same line
+    if (ang_err >  M_PI/2) ang_err -= M_PI;
+    else if (ang_err < -M_PI/2) ang_err += M_PI;
+    // convert to degrees
+    return ang_err * (180.0 / M_PI);
+}
+
+double compute_opp_distance_to_target(struct RoboAI *ai, double target_cx, double target_cy)
+{
+    if (!ai || !ai->st.opp) return NAN;
+
+    // position deltas
+    double dx = target_cx - ai->st.opp->cx;
+    double dy = target_cy - ai->st.opp->cy;
+    double dist = hypot(dx, dy);
+    return dist;
+}
+
+double compute_target_x(double target_y, double line_slope, double line_intercept){
+    // line equation: y = mx + b  --> x = (y - b) / m
+    if (fabs(line_slope) < 1e-6) {
+        // vertical line case, slope is infinite
+        return NAN; // or some error value
+    }
+    return (target_y - line_intercept) / line_slope;
+}
+
+void compute_escape_rotate_target(struct RoboAI *ai, double* target_x, double* target_y){
+    double line_slope = 0.0;
+    double line_intercept = 0.0;
+    double x1 = ai->st.self->cx;;
+    double y1 = ai->st.self->cy;
+    double x2, y2 = 0.0;
+    // get 自己球门位置
+    compute_goal_center(1-ai->st.side, &x2, &y2);
+
+    // 暂时不处理slope == infinite的情况 --> vertical line
+    // 不太可能有这种情况出现
+
+    line_slope = (y2 - y1) / (x2 - x1);
+    line_intercept = y1 - line_slope * x1;
+
+    double temp_x = compute_target_x(0, line_slope, line_intercept);
+    if (temp_x > 0 && temp_x < sx) {
+        *target_x = temp_x;
+        *target_y = 0;
+    } else {
+        temp_x = compute_target_x(sy, line_slope, line_intercept);
+        *target_x = temp_x;
+        *target_y = sy;
+    }
+}
+
+#define DEFENSE_THRESHOLD 300
+#define OPP_FACE_THRESH_DEG 20
+// 暂时不做更精准的判断
+// 这里其实可以做更精准的判断
+bool need_defense(struct RoboAI *ai){
+    // opp 离球很近
+    double opp_ball_dist = compute_opp_distance_to_target(ai, ai->st.ball->cx, ai->st.ball->cy);
+    // opp 朝球的方向对齐
+    double opp_ball_angle = compute_opp_angle_diff_to_target(ai, ai->st.ball->cx, ai->st.ball->cy);
+    // opp 朝向我方球门的方向对齐
+    double gx, gy;
+    compute_goal_center(1 - ai->st.side, &gx, &gy);
+    double opp_goal_angle = compute_opp_angle_diff_to_target(ai, gx, gy);
+    return fabs(opp_ball_dist) < DEFENSE_THRESHOLD &&
+           fabs(opp_ball_angle) < OPP_FACE_THRESH_DEG &&
+           fabs(opp_goal_angle) < OPP_FACE_THRESH_DEG;
+}
+
+#define ESCAPE_THRESHOLD 300
+// 暂时不做更精准的判断
+// 这里其实可以做更精准的判断 --> OPP 的 blob里面的边框方向
+bool need_escape(struct RoboAI *ai){
+    return compute_opp_distance_to_target(ai, ai->st.self->cx, ai->st.self->cy) < ESCAPE_THRESHOLD;
+}
+
+////////// old things
+
+void compute_target_position(struct RoboAI *ai, double *target_cx, double *target_cy)
+{
+  // use self's x and ball's y as target for simplicity
+  if (!ai || !ai->st.self || !ai->st.ball || !target_cx || !target_cy) return;
+  *target_cx = ai->st.self->cx;
+  *target_cy = ai->st.ball->cy;
+}
+
 
 // 这个用作计算机器人当前朝向和球的角度差的helper func
 // 返回值是度数(degrees)，正负表示方向, normalized to [-180, 180]

@@ -7,6 +7,8 @@
 #include "API/btcomm.h"
 #include <stdio.h>
 #include <stdlib.h>
+
+// compile might have issue
 #include "roboAI.h"
 #include <stdbool.h>
 
