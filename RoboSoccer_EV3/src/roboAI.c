@@ -2564,6 +2564,24 @@ double compute_opp_distance_to_target(struct RoboAI *ai, double target_cx, doubl
     return dist;
 }
 
+static void compute_goal_center1(int side, double *gcx, double *gcy)
+{
+  if (!ai || !ai->st.self || !gcx || !gcy) return;
+
+  // left goal center is: (0, sy/2)
+  // right goal center is: (sx, sy/2)
+
+  if (side == 0) {
+    // left side, so opponent goal is right
+    *gcx = sx; // right edge
+    *gcy = sy / 2.0;
+  } else {
+    // right side, so opponent goal is left
+    *gcx = 0.0; // left edge
+    *gcy = sy / 2.0;
+  }
+}
+
 #define DEFENSE_THRESHOLD 300
 #define OPP_FACE_THRESH_DEG 20
 // 暂时不做更精准的判断
@@ -2575,7 +2593,7 @@ bool need_defense(struct RoboAI *ai){
     double opp_ball_angle = compute_opp_angle_diff_to_target(ai, ai->st.ball->cx, ai->st.ball->cy);
     // opp 朝向我方球门的方向对齐
     double gx, gy;
-    compute_goal_center(1 - ai->st.side, &gx, &gy);
+    compute_goal_center1(1 - ai->st.side, &gx, &gy);
     double opp_goal_angle = compute_opp_angle_diff_to_target(ai, gx, gy);
     return fabs(opp_ball_dist) < DEFENSE_THRESHOLD &&
            fabs(opp_ball_angle) < OPP_FACE_THRESH_DEG &&
