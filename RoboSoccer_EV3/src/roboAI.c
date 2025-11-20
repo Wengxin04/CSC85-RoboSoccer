@@ -2491,6 +2491,13 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
         }
         double target_cx, target_cy;
         compute_target_position_soccer(ai, &target_cx, &target_cy);
+        if (is_close_to_target(ai, target_cx, target_cy)) {
+          fprintf(stderr, "Already reached target in SOCCER mode, stopping\n");
+          ai->st.state = ST_SOCCER_ROTATE_TO_BALL;
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+          break;
+        }
         if (!is_facing_target(ai, *smx, *smy, target_cx, target_cy)) {
           fprintf(stderr, "Lost facing target in SOCCER mode, rotating to face\n");
           ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
@@ -2500,12 +2507,6 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
           fprintf(stderr, "Moving to target in SOCCER mode\n");
           move_to_blob(ai, *smx, *smy, target_cx, target_cy, TARGET_BALL_DIST);
           usleep(100*1000); // wait for a short while
-        }
-        else {
-          fprintf(stderr, "Reached target in SOCCER mode, stopping\n");
-          ai->st.state = ST_SOCCER_ROTATE_TO_BALL;
-          BT_motor_port_stop(LEFT_MOTOR, 0);
-          BT_motor_port_stop(RIGHT_MOTOR, 0);
         }
       break;    
       }
@@ -2553,6 +2554,13 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
       }
     case ST_SOCCER_MOVE_TO_BALL:
       {
+        if (is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
+          fprintf(stderr, "Reached ball in SOCCER mode, kicking\n");
+          ai->st.state = ST_SOCCER_KICK_BALL;
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+          break;
+        }
          if (check_anything_lost(ai)) {
           fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
           BT_motor_port_stop(LEFT_MOTOR, 0);
@@ -2569,12 +2577,6 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
           fprintf(stderr, "Moving to ball in SOCCER mode\n");
           move_to_blob(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy, TARGET_BALL_DIST);
           usleep(100*1000); // wait for a short while
-        }
-        else {
-          fprintf(stderr, "Reached ball in SOCCER mode, kicking\n");
-          ai->st.state = ST_SOCCER_KICK_BALL;
-          BT_motor_port_stop(LEFT_MOTOR, 0);
-          BT_motor_port_stop(RIGHT_MOTOR, 0);
         }
         break;    
       }
