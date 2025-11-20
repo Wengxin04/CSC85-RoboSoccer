@@ -2426,7 +2426,7 @@ void defend_goal(struct RoboAI *ai)
 
 static bool check_anything_lost(struct RoboAI *ai)
 {
-  if (!ai || !ai->st.self || !ai->st.ball) return true;
+  if (!ai || !ai->st.self || !ai->st.ball || !ai->st.opp) return true;
   return false;
 }
 
@@ -2751,8 +2751,23 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy)
   double target_cx, target_cy;
   compute_defense_target(ai, &target_cx, &target_cy);
 
+  if (check_anything_lost(ai)) {
+          fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+          ai->st.state = ST_SOCCER_DEFEND_DONE;
+          return;
+        }
+
   switch(state){
     case ST_SOCCER_ESCAPE_FROM_OPP:
+    if (check_anything_lost(ai)) {
+          fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+          ai->st.state = ST_SOCCER_DEFEND_DONE;
+          break;
+        }
       ai->st.state = ST_SOCCER_DEFEND_ROTATE;
       break;
     case ST_SOCCER_DEFEND_ROTATE:
