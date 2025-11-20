@@ -79,6 +79,13 @@
 #define ST_SOCCER_MOVE_TO_EDGE 21
 #define ST_SOCCER_ROTATE_TO_KICK 22
 
+
+#define ST_SOCCER_NORMAL_PLAY_EMPTY1      80
+#define ST_SOCCER_NORMAL_PLAY_EMPTY2      81
+#define ST_SOCCER_NORMAL_PLAY_DONE        82
+
+void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy);
+
 #define ST_SOCCER_DONE 99             // Soccer done
 
 #define ST_PENALTY_EMPTY1 120

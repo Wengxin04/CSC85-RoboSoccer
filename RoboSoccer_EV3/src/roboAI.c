@@ -179,7 +179,7 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs);
 static void penalty_mode(struct RoboAI *ai, double* smx, double* smy);
 static void chase_mode(struct RoboAI *ai, struct blob *blobs);
 
-static void soccer_test_mode(struct RoboAI *ai, struct blob *blobs);
+static void soccer_test_mode(struct RoboAI *ai, double* smx, double* smy);
 
 // Tuning knobs for penalty routine
 enum {
@@ -1089,10 +1089,8 @@ static int detect_obstacle(struct RoboAI *ai) {
   return NO_OBSTACLE;
 }
 
-static void soccer_test_mode(struct RoboAI *ai, struct blob *blobs) {
-  int state = ai->st.state;
-  fprintf(stderr, "In SOCCER TEST mode, current state: %d\n", state);
-
+static void soccer_test_mode(struct RoboAI *ai, double *smx, double *smy) {
+  soccer_normal_play_mode(ai, smx, smy);
 }
 
 static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
@@ -2383,7 +2381,7 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
       }
     case ST_SOCCER_NORMAL_PLAY_DONE:
       {
-        if (ai == NULL || ai->st.ball == NULL) {
+        if (ai == NULL || ai->st.ball == NULL || ai->st.self == NULL || ai->st.opp == NULL) {
         fprintf(stderr, "Ball lost after kick, rotating to search\n");
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
@@ -2398,4 +2396,73 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
       break;  
       }  
   }
+}
+
+double compute_opp_angle_diff_to_target(struct RoboAI *ai, double target_x, double target_y)
+{
+    if (!ai || !ai->st.opp) return;
+
+    // position deltas
+    double dx = target_x - ai->st.opp->cx;
+    double dy = target_y - ai->st.opp->cy;
+    double ang_to_target = atan2(dy, dx);
+
+    double hdx = ai->st.odx;
+    double hdy = ai->st.ody;
+
+    double ang_opp = atan2(hdy, hdx);
+
+    // angle error
+    double ang_err = ang_to_target - ang_opp;
+
+    // normalized to [-pi/2, pi/2]
+    // 我们只关心opp direction vector 所在直线和opp-target vector 的夹角
+    // first normalize to [-pi, pi]
+    while (ang_err >  M_PI) ang_err -= 2*M_PI;
+    while (ang_err < -M_PI) ang_err += 2*M_PI;
+    // reduce to [-pi/2, pi/2] because direction and its opposite represent the same line
+    if (ang_err >  M_PI/2) ang_err -= M_PI;
+    else if (ang_err < -M_PI/2) ang_err += M_PI;
+    // convert to degrees
+    return ang_err * (180.0 / M_PI);
+}
+
+double compute_opp_distance_to_target(struct RoboAI *ai, double target_cx, double target_cy)
+{
+    if (!ai || !ai->st.opp) return NAN;
+
+    // position deltas
+    double dx = target_cx - ai->st.opp->cx;
+    double dy = target_cy - ai->st.opp->cy;
+    double dist = hypot(dx, dy);
+    return dist;
+}
+
+#define DEFENSE_THRESHOLD 300
+#define OPP_FACE_THRESH_DEG 20
+// 暂时不做更精准的判断
+// 这里其实可以做更精准的判断
+bool need_defense(struct RoboAI *ai){
+    // opp 离球很近
+    double opp_ball_dist = compute_opp_distance_to_target(ai, ai->st.ball->cx, ai->st.ball->cy);
+    // opp 朝球的方向对齐
+    double opp_ball_angle = compute_opp_angle_diff_to_target(ai, ai->st.ball->cx, ai->st.ball->cy);
+    // opp 朝向我方球门的方向对齐
+    double gx, gy;
+    compute_goal_center(1 - ai->st.side, &gx, &gy);
+    double opp_goal_angle = compute_opp_angle_diff_to_target(ai, gx, gy);
+    return fabs(opp_ball_dist) < DEFENSE_THRESHOLD &&
+           fabs(opp_ball_angle) < OPP_FACE_THRESH_DEG &&
+           fabs(opp_goal_angle) < OPP_FACE_THRESH_DEG;
+}
+
+#define ESCAPE_THRESHOLD 300
+#define ESCAPE_ANGLE_THRESH_DEG 20
+// 暂时不做更精准的判断
+// 这里其实可以做更精准的判断 --> OPP 的 blob里面的边框方向
+bool need_escape(struct RoboAI *ai, double *smx, double *smy){
+    double dist = compute_opp_distance_to_target(ai, ai->st.self->cx, ai->st.self->cy);
+    double angle = compute_angle_error_to_target(ai, ai->st.opp->cx, ai->st.opp->cy);
+    return fabs(dist) < ESCAPE_THRESHOLD &&
+           fabs(angle) < ESCAPE_ANGLE_THRESH_DEG;
 }
