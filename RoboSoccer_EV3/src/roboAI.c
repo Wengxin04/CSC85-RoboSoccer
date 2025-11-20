@@ -1799,14 +1799,25 @@ void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, do
   // turn = 0.0; // 先不转了，直接走直线接近球
   if (forward_speed > 100) forward_speed = 100;
 
-  int left  = (forward_speed + turn); // * 1.3; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
-  int right = (forward_speed - turn); // * 0.9; // wallahi 调整
+  int left  = (forward_speed + turn) * 1.1; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
+  int right = (forward_speed - turn) * 0.9; // wallahi 调整
+
+  // slow rate to prevent sudden changes
+  static int prev_left, prev_right;
+  if (left < prev_left - 20) left = prev_left - 20;
+  if (left > prev_left + 20) left = prev_left + 20;
+  if (right < prev_right - 20) right = prev_right - 20;
+  if (right > prev_right + 20) right = prev_right + 20;
+  prev_left = left;
+  prev_right = right;
 
   // deadband - ensure minimum speed to overcome friction
   if (left < -100) left = -100;
   if (left > 100) left = 100;
   if (right < -100) right = -100;
   if (right > 100) right = 100;
+
+  
 
   // stop condition
   // 可以之后增加连续停止的判定，防止误停？
@@ -1819,6 +1830,7 @@ void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, do
           dist, dist_err, d_dist, forward_speed, up_dist, ud_dist, turn, up_ang, ud_ang, ui_ang, left, right, ang_err);
 
   BT_drive(LEFT_MOTOR, RIGHT_MOTOR, left, right);
+  usleep(10000); // 10ms
 }
 
 // void align_to_goal_with_ball(struct RoboAI *ai, double smx, double smy) {
