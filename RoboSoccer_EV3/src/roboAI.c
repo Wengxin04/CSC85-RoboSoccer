@@ -1103,6 +1103,11 @@ static int detect_obstacle(struct RoboAI *ai) {
   return NO_OBSTACLE;
 }
 
+#define ESCAPE_BEHAVIOR 1
+#define NORMAL_ATTACK_BEHAVIOR 2
+#define EDGE_ATTACK_BEHAVIOR 3
+#define DEFEND_BEHAVIOR 4
+
 // TODO!
 static int check_soccer_state_behavior(struct RoboAI *ai, double *smx, double *smy) {
   // determine whether the ai should escape, defend, or attack (normal attack or edge attack)
@@ -1110,21 +1115,32 @@ static int check_soccer_state_behavior(struct RoboAI *ai, double *smx, double *s
 
   bool escape = need_escape(ai, smx, smy);
   if (escape) {
-    return 1; // escape
+    return ESCAPE_BEHAVIOR; // escape
   }
 
   bool defend = need_defense(ai);
   if (defend) {
-    return 4; // defend
+    return DEFEND_BEHAVIOR; // defend
   }
 
   // now don't consider edge attack, only do normal attack
-  return 2; // normal attack
+  return NORMAL_ATTACK_BEHAVIOR; // normal attack
 }
 
 static void soccer_test_mode(struct RoboAI *ai, double *smx, double *smy) {
+  int behavior = check_soccer_state_behavior(ai, smx, smy);
+  fprintf(stderr, "In SOCCER test mode, behavior: %d\n", behavior);
+  if (behavior == NORMAL_ATTACK_BEHAVIOR) {
+    fprintf(stderr, "Attacking!\n");
+    soccer_normal_play_mode(ai, smx, smy);
+    return;
+  } else if (behavior == DEFEND_BEHAVIOR) {
+    fprintf(stderr, "Defending goal\n");
+    soccer_defense_mode(ai, smx, smy);
+    return;
+  }
   // soccer_normal_play_mode(ai, smx, smy);
-  soccer_defense_mode(ai, smx, smy);
+  // soccer_defense_mode(ai, smx, smy);
 }
 
 static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
@@ -2433,10 +2449,16 @@ static bool check_anything_lost(struct RoboAI *ai)
 void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
   int state = ai->st.state;
   static double prev_rotate_deg = 0.0;
+  ai->st.state = ST_SOCCER_ROTATE_TO_TARGET; // default next state
+  int behavior = check_soccer_state_behavior(ai, smx, smy);
+  if (behavior == NORMAL_ATTACK_BEHAVIOR) {
+    // do nothing, continue normal play
+  } else if (behavior == DEFEND_BEHAVIOR) {
+    // other behaviors can be added here
+    fprintf(stderr, "Defending in soccer normal play mode\n");
+    ai->st.state = ST_SOCCER_DEFEND_ROTATE;
+  }
   switch (state) {
-    case ST_SOCCER_ESCAPE_FROM_OPP:
-      ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
-      break;
     case ST_SOCCER_ROTATE_TO_TARGET:
       {
         if (check_anything_lost(ai)) {

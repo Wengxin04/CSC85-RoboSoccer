@@ -65,10 +65,11 @@
 
 // Soccer mode state definitions (0-99)
 #define ST_SOCCER_INIT 0              // Initial state
-#define ST_SOCCER_ESCAPE_FROM_OPP 1   // Escape from opponent
-#define ST_SOCCER_NORMAL_PLAY 2      // Normal play state
-#define ST_SOCCER_EDGE_PLAY 3       // Edge play state
-#define ST_SOCCER_DEFEND_GOAL 4		// Defend state - need a high priority
+#define ST_SOCCER_CHECK_BEHAVIOR 1    // Check what to do next
+#define ST_SOCCER_ESCAPE_FROM_OPP 2   // Escape from opponent
+#define ST_SOCCER_NORMAL_PLAY 3      // Normal play state
+#define ST_SOCCER_EDGE_PLAY 4       // Edge play state
+#define ST_SOCCER_DEFEND_GOAL 5		// Defend state - need a high priority
 
 // escape from opponent substates
 #define ST_SOCCER_ESCAPE_ROTATE 10
