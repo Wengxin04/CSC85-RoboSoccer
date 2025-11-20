@@ -1603,7 +1603,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
   }
 }
 
-static void chase_mode(struct RoboAI *ai, struct blob *blobs) {
+static void chase_mode(struct RoboAI *ai, struct blob *blob, double* stored_smx, double* stored_smy) {
   fprintf(stderr, "In CHASE mode, current state: %d\n", ai->st.state);
   int state = ai->st.state;
   // TODOO: add chase mode logic here
@@ -1616,9 +1616,12 @@ static void chase_mode(struct RoboAI *ai, struct blob *blobs) {
         break;
       }
       // TODOO: implement rotate to ball logic
-      if (!is_facing_target(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx, ai->st.ball->cy)) {
+      if (!is_facing_target(ai, *stored_smx, *stored_smy, ai->st.ball->cx, ai->st.ball->cy)) {
         fprintf(stderr, "Rotating to face ball in CHASE mode\n");
-        rotate_to_blob(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx, ai->st.ball->cy);
+        double angle_error = compute_angle_error_to_target(ai, *stored_smx, *stored_smy, ai->st.ball->cx, ai->st.ball->cy);
+        rotate_to_blob(ai, *stored_smx, *stored_smy, ai->st.ball->cx, ai->st.ball->cy);
+        correct_motion_vector(stored_smx, stored_smy, angle_error);
+        ai->st.state = ST_CHASE_EMPTY1;
       } else {
         fprintf(stderr, "Facing ball achieved in CHASE mode\n");
         ai->st.state = ST_CHASE_MOVE_TO_BALL;
@@ -1626,6 +1629,13 @@ static void chase_mode(struct RoboAI *ai, struct blob *blobs) {
         BT_motor_port_stop(RIGHT_MOTOR, 0);
       }
       break;
+    
+    case ST_CHASE_EMPTY1:
+      {
+        usleep(100*1000);
+        ai->st.state = ST_CHASE_MOVE_TO_BALL;
+        break;
+      }
 
     case ST_CHASE_MOVE_TO_BALL:
       // TODOO: implement move to ball logic
@@ -1643,7 +1653,8 @@ static void chase_mode(struct RoboAI *ai, struct blob *blobs) {
       } 
       else if (!is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
         // fprintf(stderr, "Moving to ball in CHASE mode\n");
-        move_to_blob(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx, ai->st.ball->cy, TARGET_BALL_DIST);
+        move_to_blob(ai, *stored_smx, *stored_smy, ai->st.ball->cx, ai->st.ball->cy, TARGET_BALL_DIST);
+        usleep(100*1000); // small delay to allow motion
       }
       else if (is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
         ai->st.state = ST_CHASE_KICK_BALL;

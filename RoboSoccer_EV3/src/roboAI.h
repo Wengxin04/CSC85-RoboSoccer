@@ -58,6 +58,7 @@
 #define ST_CHASE_MOVE_TO_BALL 202       // Move to the ball
 #define ST_CHASE_KICK_BALL 203        // Kick the ball
 #define ST_CHASE_DONE 299              // Chase done
+#define ST_CHASE_EMPTY1 210
 
 // Soccer mode state definitions (0-99)
 #define ST_SOCCER_INIT 0              // Initial state
