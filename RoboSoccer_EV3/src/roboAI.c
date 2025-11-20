@@ -61,8 +61,6 @@ int laggy=0;
 #define HISTORY_LEN 5  // Number of frames to remember
 #define MAX_MISSED_FRAMES 5 // Number of consecutive missed frames before considering blob lost
 
-double angle_history[HISTORY_LEN];
-
 double find_angle_err(double new_ang) {
     static double ema = 0.0;
     static int initialized = 0;
@@ -71,8 +69,8 @@ double find_angle_err(double new_ang) {
         ema = new_ang;
         initialized = 1;
     } else {
-        const double alpha = 0.2; // smoothing factor
-        ema = alpha * new_ang + (1.0 - 0.8) * ema;
+        const double alpha = 0.7; // smoothing factor
+        ema = alpha * new_ang + (1.0 - alpha) * ema;
     }
     return ema;
 }
@@ -1817,7 +1815,6 @@ void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, do
   if (right < -100) right = -100;
   if (right > 100) right = 100;
 
-  
 
   // stop condition
   // 可以之后增加连续停止的判定，防止误停？
@@ -1830,7 +1827,7 @@ void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, do
           dist, dist_err, d_dist, forward_speed, up_dist, ud_dist, turn, up_ang, ud_ang, ui_ang, left, right, ang_err);
 
   BT_drive(LEFT_MOTOR, RIGHT_MOTOR, left, right);
-  usleep(10000); // 10ms
+  usleep(1000); // 10ms
 }
 
 // void align_to_goal_with_ball(struct RoboAI *ai, double smx, double smy) {
