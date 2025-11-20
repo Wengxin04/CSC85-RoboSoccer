@@ -2535,31 +2535,31 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy)
   compute_defense_target(ai, &target_cx, &target_cy);
 
   switch(state){
-    case ST_DEFENSE_ROTATE_TO_TARGET:
+    case ST_SOCCER_DEFEND_ROTATE:
       if (!is_facing_target(ai, *smx, *smy, target_cx, target_cy)) {
         fprintf(stderr, "Rotating to face defense target\n");
         double ang_err = compute_angle_error_to_target(ai, *smx, *smy, target_cx, target_cy);
         rotate_to_blob(ai, *smx, *smy, target_cx, target_cy);
         correct_motion_vector(smx, smy, ang_err);
-        ai->st.state = ST_DEFENSE_MOVE_TO_TARGET;
+        ai->st.state = ST_SOCCER_DEFEND_EMPTY;
       }
       else {
-        ai->st.state = ST_DEFENSE_MOVE_TO_TARGET;
+        ai->st.state = ST_SOCCER_DEFEND_MOVE;
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
       }
       break;
-    case ST_DEFENSE_ROTATE_EMPTY:
+    case ST_SOCCER_DEFEND_EMPTY:
       {
         usleep(100*1000); // wait for a short while
-        ai->st.state = ST_DEFENSE_MOVE_TO_TARGET;
+        ai->st.state = ST_SOCCER_DEFEND_MOVE;
         break;
       }  
-    case ST_DEFENSE_MOVE_TO_TARGET: 
+    case ST_SOCCER_DEFEND_MOVE:
       {
         if (!is_facing_target(ai, *smx, *smy, target_cx, target_cy)) {
           fprintf(stderr, "Lost facing defense target, rotating to face\n");
-          ai->st.state = ST_DEFENSE_ROTATE_TO_TARGET;
+          ai->st.state = ST_SOCCER_DEFEND_ROTATE;
           break;
         }
         if (!is_close_to_target(ai, target_cx, target_cy)) {
@@ -2569,14 +2569,14 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy)
         }
         else {
           fprintf(stderr, "Reached defense target, holding position\n");
-          ai->st.state = ST_DEFENSE_DONE;
+          ai->st.state = ST_SOCCER_DEFEND_DONE;
           BT_motor_port_stop(LEFT_MOTOR, 0);
           BT_motor_port_stop(RIGHT_MOTOR, 0);
         }
         break;  
       }
 
-     case ST_DEFENSE_DONE:
+     case ST_SOCCER_DEFEND_DONE:
       {
         usleep(500*1000); // wait for a short while
         break; 

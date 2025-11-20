@@ -96,6 +96,7 @@
 #define ST_SOCCER_DEFEND_ROTATE 40
 #define ST_SOCCER_DEFEND_MOVE 41
 #define ST_SOCCER_DEFEND_DONE 42
+#define ST_SOCCER_DEFEND_EMPTY 43
 
 void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy);
 
