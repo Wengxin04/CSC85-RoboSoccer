@@ -2462,7 +2462,7 @@ bool need_defense(struct RoboAI *ai){
 // 这里其实可以做更精准的判断 --> OPP 的 blob里面的边框方向
 bool need_escape(struct RoboAI *ai, double *smx, double *smy){
     double dist = compute_opp_distance_to_target(ai, ai->st.self->cx, ai->st.self->cy);
-    double angle = compute_angle_error_to_target(ai, ai->st.opp->cx, ai->st.opp->cy);
+    double angle = compute_angle_error_to_target(ai, *smx, *smy, ai->st.opp->cx, ai->st.opp->cy);
     return fabs(dist) < ESCAPE_THRESHOLD &&
            fabs(angle) < ESCAPE_ANGLE_THRESH_DEG;
 }
