@@ -179,6 +179,8 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs);
 static void penalty_mode(struct RoboAI *ai, double* smx, double* smy);
 static void chase_mode(struct RoboAI *ai, struct blob *blobs);
 
+static void soccer_test_mode(struct RoboAI *ai, struct blob *blobs);
+
 // Tuning knobs for penalty routine
 enum {
     FACE_THRESH_DEG   = 15,    // tweak
@@ -187,7 +189,7 @@ enum {
     TARGET_TARGET_DIST= 20,   // pixels; tweak to your scale
     CLOSE_BALL_SLACK  = 15,    // +/-
     BEHIND_BALL_GAP   = 10,    // min px robot should be "behind" ball wrt goal
-    DELTA_TO_TARGET   = 350,    // temporary
+    DELTA_TO_TARGET   = 200,    // temporary
     DEFEND_GOAL_THRESHOLD = 450, // temporary
 };
 
@@ -1015,7 +1017,8 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
 
   if (state >= 0 && state < 100) {
       // SOCCER mode
-      soccer_mode(ai, blobs);
+      //soccer_mode(ai, blobs);
+      soccer_test_mode(ai, blobs);
   } else if (state >= 100 && state < 200) {
       // PENALTY mode
       penalty_mode(ai, &stored_smx, &stored_smy);
@@ -1084,6 +1087,12 @@ static int detect_obstacle(struct RoboAI *ai) {
   // return OBSTACLE_DETECTED or NO_OBSTACLE
   // for now, just return NO_OBSTACLE
   return NO_OBSTACLE;
+}
+
+static void soccer_test_mode(struct RoboAI *ai, struct blob *blobs) {
+  int state = ai->st.state;
+  fprintf(stderr, "In SOCCER TEST mode, current state: %d\n", state);
+
 }
 
 static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
@@ -1458,7 +1467,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       // break;
     {
       double target_cx, target_cy;
-      compute_target_position(ai, &target_cx, &target_cy);
+      compute_target_position_soccer(ai, &target_cx, &target_cy);
       // print self position and target position
       fprintf(stderr, "Self position: (%.2f, %.2f), Target position: (%.2f, %.2f)\n", ai->st.self->cx, ai->st.self->cy, target_cx, target_cy);
 
@@ -1494,7 +1503,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
     {
       // calculate target position
       double tgt_cx, tgt_cy;
-      compute_target_position(ai, &tgt_cx, &tgt_cy);
+      compute_target_position_soccer(ai, &tgt_cx, &tgt_cy);
       if (!is_facing_target(ai, *stored_smx, *stored_smy, tgt_cx, tgt_cy)) {
         ai->st.state = ST_PENALTY_ROTATE_TO_TARGET;
         BT_motor_port_stop(LEFT_MOTOR, 0);
@@ -1504,10 +1513,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       else if (!is_close_to_target(ai, tgt_cx, tgt_cy)) {
        fprintf(stderr, "Moving to target in PENALTY mode\n");
         move_to_blob(ai, *stored_smx, *stored_smy, tgt_cx, tgt_cy, TARGET_TARGET_DIST);
-        if (*stored_smx == 0 && *stored_smy == 0) {
-          *stored_smx = ai->st.smx;
-          *stored_smy = ai->st.smy;
-        }
+        usleep(100*1000); 
       }
       else if (is_close_to_target(ai, tgt_cx, tgt_cy)) {
         ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
@@ -1567,7 +1573,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
         // *stored_smy = ai->st.smy;
         // 好像是motion vector 的错误导致角度计算又有问题.....
         // 实在不行这里stored 不更新了，或者加noise handling！
-        sleep(1); // avoid smx/smy being zero/错误计算
+        usleep(100*1000); // avoid smx/smy being zero/错误计算
       }
       else if (is_close_to_ball(ai, b_cx, b_cy)) {
         ai->st.state = ST_PENALTY_KICK_BALL;
