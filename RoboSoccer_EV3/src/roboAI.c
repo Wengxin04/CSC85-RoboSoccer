@@ -2367,3 +2367,41 @@ void soccer_escape_mode(struct RoboAI *ai)
       break;  
   }
 }
+
+
+void move_back_to_target(struct RoboAI *ai, double target_x, double target_y, double target_dist)
+{
+    // distance to ball
+    // double target_dist = TARGET_BALL_DIST;  // target distance to ball // 要调参
+    double dist_err = 0.0, d_dist = 0.0;
+    double dist = compute_distance_error(ai, target_dist, &dist_err, &d_dist, target_x, target_y);
+    dist = -dist; // moving backwards, so invert distance
+
+    // forward PD control --> 接近时减速
+    const double Kp_fwd = 0.1; // 要调参
+    const double Kd_fwd = 0;// 要调参
+    double forward_speed = Kp_fwd * dist_err - Kd_fwd * d_dist; // pd
+
+    // speed limits
+    if (forward_speed < -50) forward_speed = -50;
+    if (forward_speed > -30) forward_speed = -30;
+    // compute left/right motor speeds
+    int left  = (forward_speed - turn) * 1.3; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
+    int right = (forward_speed + turn) * 0.9;
+
+    // deadband - ensure minimum speed to overcome friction
+    if (fabs(left)  < 8) left  = (left>=0?8:-8);
+    if (fabs(right) < 8) right = (right>=0?8:-8);
+
+    // stop condition
+    // 可以之后增加连续停止的判定，防止误停？
+    if (dist < target_dist + 5.0) {
+        BT_all_stop(0);
+        return;
+    }
+
+    fprintf(stderr, "move back to target: dist %.2f (err %.2f, d %.2f), fwd %.2f, turn %.2f, left %d, right %d\n",
+            dist, dist_err, d_dist, forward_speed, turn, left, right);
+
+    BT_drive(LEFT_MOTOR, RIGHT_MOTOR, left, right);
+}
