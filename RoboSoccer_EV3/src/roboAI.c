@@ -1123,7 +1123,8 @@ static int check_soccer_state_behavior(struct RoboAI *ai, double *smx, double *s
 }
 
 static void soccer_test_mode(struct RoboAI *ai, double *smx, double *smy) {
-  soccer_normal_play_mode(ai, smx, smy);
+  // soccer_normal_play_mode(ai, smx, smy);
+  soccer_defense_mode(ai, smx, smy);
 }
 
 static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
@@ -2750,6 +2751,9 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy)
   compute_defense_target(ai, &target_cx, &target_cy);
 
   switch(state){
+    case ST_SOCCER_ESCAPE_FROM_OPP:
+      ai->st.state = ST_SOCCER_DEFEND_ROTATE;
+      break;
     case ST_SOCCER_DEFEND_ROTATE:
       if (!is_facing_target(ai, *smx, *smy, target_cx, target_cy)) {
         fprintf(stderr, "Rotating to face defense target\n");
