@@ -25,6 +25,7 @@
 #include "API/btcomm.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 // Change this to match the ports your bots motors are connected to
 // TODOO: change it to the actual motor ports
@@ -52,6 +53,9 @@
 #define ST_MOTION_UPDATE1 110
 #define ST_MOTION_UPDATE2 111
 
+#define ST_PENALTY_EMPTY1 120
+#define ST_PENALTY_EMPTY2 121
+
 // Chase mode state definitions (200-299)
 #define ST_CHASE_INIT 200              // Initial state
 #define ST_CHASE_ROTATE_TO_BALL 201    // Rotate to face the ball
@@ -61,35 +65,41 @@
 
 // Soccer mode state definitions (0-99)
 #define ST_SOCCER_INIT 0              // Initial state
-#define ST_SOCCER_NORMAL_PLAY 1      // Normal play state
-#define ST_SOCCER_EDGE_PLAY 2		// Edge play state
-#define ST_SOCCER_DEFEND_GOAL 3		// Defend state - need a high priority
+#define ST_SOCCER_ESCAPE_FROM_OPP 1   // Escape from opponent
+#define ST_SOCCER_NORMAL_PLAY 2      // Normal play state
+#define ST_SOCCER_EDGE_PLAY 3       // Edge play state
+#define ST_SOCCER_DEFEND_GOAL 4		// Defend state - need a high priority
+
+// escape from opponent substates
+#define ST_SOCCER_ESCAPE_ROTATE 10
+#define ST_SOCCER_ESCAPE_MOVE 11
+#define ST_SOCCER_ESCAPE_DONE 12
 
 // normal play substates: if the ball is kickable
-#define ST_SOCCER_ROTATE_TO_TARGET 10
-#define ST_SOCCER_MOVE_TO_TARGET 11
-#define ST_SOCCER_ROTATE_TO_BALL 12
-#define ST_SOCCER_MOVE_TO_BALL 13
-#define ST_SOCCER_DRIBBLE_BALL 14
-#define ST_SOCCER_SWERVE_OBSTACLE 15
-#define ST_SOCCER_KICK_BALL 16
+#define ST_SOCCER_ROTATE_TO_TARGET 20
+#define ST_SOCCER_MOVE_TO_TARGET 21
+#define ST_SOCCER_ROTATE_TO_BALL 22
+#define ST_SOCCER_MOVE_TO_BALL 23
+#define ST_SOCCER_DRIBBLE_BALL 24 // to add
+#define ST_SOCCER_SWERVE_OBSTACLE 25 // to add
+#define ST_SOCCER_KICK_BALL 26
+#define ST_SOCCER_NORMAL_PLAY_EMPTY1      27
+#define ST_SOCCER_NORMAL_PLAY_EMPTY2      28
+#define ST_SOCCER_NORMAL_PLAY_DONE        29
 
 // edge play substates: if the ball is near the edge of the field (exit edge play when the ball is back to normal play area)
-#define ST_SOCCER_ROTATE_TO_EDGE 20
-#define ST_SOCCER_MOVE_TO_EDGE 21
-#define ST_SOCCER_ROTATE_TO_KICK 22
+#define ST_SOCCER_ROTATE_TO_EDGE 30
+#define ST_SOCCER_MOVE_TO_EDGE 31
+#define ST_SOCCER_ROTATE_TO_KICK 32
 
-
-#define ST_SOCCER_NORMAL_PLAY_EMPTY1      80
-#define ST_SOCCER_NORMAL_PLAY_EMPTY2      81
-#define ST_SOCCER_NORMAL_PLAY_DONE        82
+// defend goal substates
+#define ST_SOCCER_DEFEND_ROTATE 40
+#define ST_SOCCER_DEFEND_MOVE 41
+#define ST_SOCCER_DEFEND_DONE 42
 
 void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy);
 
 #define ST_SOCCER_DONE 99             // Soccer done
-
-#define ST_PENALTY_EMPTY1 120
-#define ST_PENALTY_EMPTY2 121
 
 struct AI_data{
 	// This data structure is used to hold all data relevant to the state of the AI.
@@ -229,5 +239,9 @@ int is_in_kicking_position(struct RoboAI *ai);
 void swerve_around_obstacle(struct RoboAI *ai, struct blob *obstacle);
 void defend_goal(struct RoboAI *ai);
 double correct_motion_vector(double* smx, double*smy, double rotate_angle_deg);
+
+bool need_escape(struct RoboAI *ai, double *smx, double *smy);
+bool need_defense(struct RoboAI *ai);
+
 
 #endif
