@@ -1325,7 +1325,7 @@ static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
         fprintf(stderr, "Ball not in attack zone, switching to edge play\n");
         ai->st.state = ST_SOCCER_EDGE_PLAY;
       }
-      if (is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
+      if (is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy) && obstacle_status == NO_OBSTACLE) {
         fprintf(stderr, "Kicking the ball towards goal!\n");
         kick_ball(ai);
          usleep(500*1000); // wait for a second
