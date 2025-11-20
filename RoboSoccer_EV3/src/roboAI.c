@@ -2466,3 +2466,107 @@ bool need_escape(struct RoboAI *ai, double *smx, double *smy){
     return fabs(dist) < ESCAPE_THRESHOLD &&
            fabs(angle) < ESCAPE_ANGLE_THRESH_DEG;
 }
+
+/////////////////////////////////////
+/// defense mode
+/// helper 
+#define DELTA_TO_OPP 300
+
+void compute_defense_target(struct RoboAI *ai, double *target_cx, double *target_cy){
+   compute_target_pos_general(ai, ai->st.opp->cx, ai->st.opp->cy,  DELTA_TO_OPP, target_cx, target_cy);
+}
+
+void compute_target_pos_general(struct RoboAI *ai, double gx, double gy, double delta, double *target_cx, double *target_cy)
+{
+  // use ball's position as target for simplicity
+  if (!ai || !ai->st.self || !ai->st.ball || !target_cx || !target_cy) return;
+  
+  double bx = ai->st.ball->cx;
+  double by = ai->st.ball->cy;
+
+  double dx = bx - gx;
+  double dy = by - gy;
+  double L = sqrt(dx*dx + dy*dy);
+
+  double x = delta * fabs(dx) / L;;
+  double y = delta * fabs(dy) / L;
+
+  // determine target_cy based on ball position relative to goal
+  if (by < gy) {
+    // ball is at top left quarter
+    *target_cy = by - y;
+  } else {
+    // ball is at bottom left quarter
+    *target_cy = by + y;
+  }
+
+  // determine target_cx based on goal position
+  if (gx < bx) {
+    // goal is at left
+    *target_cx = bx + x;
+  } else {
+    // goal is at right
+    *target_cx = bx - x;
+  }
+}
+
+void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy)
+{
+  int state = ai->st.state;
+  fprintf(stderr, "In SOCCER[DEFENSE] mode, current state: %d\n", state);
+
+  double target_cx, target_cy;
+  compute_defense_target(ai, &target_cx, &target_cy);
+
+  switch(state){
+    case ST_DEFENSE_ROTATE_TO_TARGET:
+      if (!is_facing_target(ai, *smx, *smy, target_cx, target_cy)) {
+        fprintf(stderr, "Rotating to face defense target\n");
+        double ang_err = compute_angle_error_to_target(ai, *smx, *smy, target_cx, target_cy);
+        rotate_to_blob(ai, *smx, *smy, target_cx, target_cy);
+        correct_motion_vector(smx, smy, ang_err);
+        ai->st.state = ST_DEFENSE_MOVE_TO_TARGET;
+      }
+      else {
+        ai->st.state = ST_DEFENSE_MOVE_TO_TARGET;
+        BT_motor_port_stop(LEFT_MOTOR, 0);
+        BT_motor_port_stop(RIGHT_MOTOR, 0);
+      }
+      break;
+    case ST_DEFENSE_ROTATE_EMPTY:
+      {
+        usleep(100*1000); // wait for a short while
+        ai->st.state = ST_DEFENSE_MOVE_TO_TARGET;
+        break;
+      }  
+    case ST_DEFENSE_MOVE_TO_TARGET: 
+      {
+        if (!is_facing_target(ai, *smx, *smy, target_cx, target_cy)) {
+          fprintf(stderr, "Lost facing defense target, rotating to face\n");
+          ai->st.state = ST_DEFENSE_ROTATE_TO_TARGET;
+          break;
+        }
+        if (!is_close_to_target(ai, target_cx, target_cy)) {
+          fprintf(stderr, "Moving to defense target\n");
+          move_to_blob(ai, *smx, *smy, target_cx, target_cy, TARGET_DEFENSE_DIST);
+          usleep(100*1000); // wait for a short while
+        }
+        else {
+          fprintf(stderr, "Reached defense target, holding position\n");
+          ai->st.state = ST_DEFENSE_DONE;
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+        }
+        break;  
+      }
+
+     case ST_DEFENSE_DONE:
+      {
+        usleep(500*1000); // wait for a short while
+        break; 
+      }   
+  }   
+}
+
+
+
