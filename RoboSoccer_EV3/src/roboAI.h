@@ -78,15 +78,6 @@
 
 #define ST_SOCCER_DONE 99             // Soccer done
 
-// Global variables for field corners
-extern double tl_x;
-extern double tl_y;
-extern double tr_x;
-extern double tr_y;
-extern double bl_x;
-extern double bl_y;
-extern double br_x;
-extern double br_y;
 #define ST_PENALTY_EMPTY1 120
 #define ST_PENALTY_EMPTY2 121
 

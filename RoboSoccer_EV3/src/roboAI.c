@@ -186,7 +186,8 @@ enum {
     TARGET_BALL_DIST  = 100,   // pixels; tweak to your scale
     TARGET_TARGET_DIST= 20,   // pixels; tweak to your scale
     CLOSE_BALL_SLACK  = 15,    // +/-
-    BEHIND_BALL_GAP   = 10    // min px robot should be "behind" ball wrt goal
+    BEHIND_BALL_GAP   = 10,    // min px robot should be "behind" ball wrt goal
+    DELTA_TO_TARGET   = 350    // temporary
 };
 
 // Helpers (predicates)
@@ -1333,23 +1334,6 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       // BT_motor_port_stop(RIGHT_MOTOR, 0);
       // ai->st.state = ST_PENALTY_DONE;
       // break;
-
-      
-      // calculate target position
-
-      // test corner positions and test goal center calculation
-      // print all corner positions
-      fprintf(stderr, "Corner positions: \n");
-      fprintf(stderr, "Top-left: (%.2f, %.2f)\n", tl_x, tl_y);
-      fprintf(stderr, "Top-right: (%.2f, %.2f)\n", tr_x, tr_y);
-      fprintf(stderr, "Bottom-left: (%.2f, %.2f)\n", bl_x, bl_y);
-      fprintf(stderr, "Bottom-right: (%.2f, %.2f)\n", br_x, br_y);
-      double gx, gy;
-      compute_goal_center(ai, &gx, &gy);
-      fprintf(stderr, "Computed goal center at: (%.2f, %.2f)\n", gx, gy);
-      ai->st.state = ST_PENALTY_DONE;
-      break;
-
     {
       double target_cx, target_cy;
       compute_target_position(ai, &target_cx, &target_cy);
@@ -1643,58 +1627,28 @@ void kick_ball(struct RoboAI *ai)
 // a function that computes the gcx, gcy coordinate of the goal center based on which side we are on
 void compute_goal_center(struct RoboAI *ai, double *gcx, double *gcy)
 {
-    if (!ai || !ai->st.self || !gcx || !gcy) return;
+  if (!ai || !ai->st.self || !gcx || !gcy) return;
 
-    double field_width = sqrt((tr_x - tl_x)*(tr_x - tl_x) + (tr_y - tl_y)*(tr_y - tl_y));
-    double field_height = sqrt((bl_x - tl_x)*(bl_x - tl_x) + (bl_y - tl_y)*(bl_y - tl_y));
+  // left goal center is: (0, sy/2)
+  // right goal center is: (sx, sy/2)
 
-    // goal don't have depth in Mcorners, we assume goal_depth constant
-    double goal_depth = 10;
-
-    *gcx = (ai->st.side == 0) ? (field_width - goal_depth/2.0) : (goal_depth/2.0);
-    *gcy = field_height / 2.0;
+  int our_side = ai->st.side; // 0 for left, 1 for right
+  if (our_side == 0) {
+    // left side, so opponent goal is right
+    *gcx = sx; // right edge
+    *gcy = sy / 2.0;
+  } else {
+    // right side, so opponent goal is left
+    *gcx = 0.0; // left edge
+    *gcy = sy / 2.0;
+  }
 }
-
-// a function that computes target_cx, target_cy coordinate (this is the intersection point of the line connecting ball and goal center, and the x axis starting from the robot position)
 
 void compute_target_position(struct RoboAI *ai, double *target_cx, double *target_cy)
 {
-  // use self's x and ball's y as target for simplicity
   if (!ai || !ai->st.self || !ai->st.ball || !target_cx || !target_cy) return;
-  *target_cx = ai->st.self->cx;
-  *target_cy = ai->st.ball->cy;
 
-
-  // previous complex version commented out (use goal position)
-    // if (!ai || !ai->st.self || !ai->st.ball || !target_cx || !target_cy) return;
-
-    // double gcx , gcy;
-    // compute_goal_center(ai, &gcx, &gcy);
-
-    // double bx = ai->st.ball->cx;
-    // double by = ai->st.ball->cy;
-    // double sx = ai->st.self->cx;
-    // double sy = ai->st.self->cy;
-
-    // // line from ball to goal center: (bx, by) to (gcx, gcy)
-    // // parametric form: x = bx + t*(gcx - bx), y = by + t*(gcy - by)
-    // // we want to find t such that the point is on the line from self to ball
-    // // line from self to ball: (sx, sy) to (bx, by)
-    // // parametric form: x = sx + u*(bx - sx), y = sy + u*(by - sy)
-
-    // // solve for intersection
-    // double denom = (gcx - bx)*(by - sy) - (gcy - by)*(bx - sx);
-    // if (fabs(denom) < 1e-6) {
-    //     // lines are parallel; just set target to ball position
-    //     *target_cx = bx;
-    //     *target_cy = by;
-    //     return;
-    // }
-
-    // double t = ((sx - bx)*(by - sy) - (sy - by)*(bx - sx)) / denom;
-
-    // *target_cx = bx + t * (gcx - bx);
-    // *target_cy = by + t * (gcy - by);
+  
 }
 
 // 这个用作计算机器人当前朝向和球的角度差的helper func
