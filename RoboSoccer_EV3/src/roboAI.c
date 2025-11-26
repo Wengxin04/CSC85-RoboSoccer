@@ -1581,7 +1581,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
     {
       // calculate target position
       double tgt_cx, tgt_cy;
-      compute_target_position(ai, &tgt_cx, &tgt_cy);
+      compute_target_position_soccer(ai, &tgt_cx, &tgt_cy);
       if (is_close_to_target(ai, tgt_cx, tgt_cy)) {
        ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
         double de = 0, dd = 0;
