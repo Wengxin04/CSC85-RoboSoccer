@@ -1120,7 +1120,7 @@ static int check_soccer_state_behavior(struct RoboAI *ai, double *smx, double *s
   // determine whether the ai should escape, defend, or attack (normal attack or edge attack)
   // return 1 for escape, 2 for normal attack, 3 for edge attack, 4 for defend
 
-  if (rotate_flag != -1){
+  if (rotate_flag >0){
     return BEHAVIOR_NOT_CHANGE; // still rotating, do not change behavior
   }
 
@@ -2125,21 +2125,21 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx, double *stor
   int state = ai->st.state;
   static double prev_rotate_deg = 0.0;
 
-  // ai->st.state = ST_SOCCER_ROTATE_TO_TARGET; // default next state
+   ai->st.state = ST_SOCCER_ROTATE_TO_TARGET; // default next state
 
-  // int behavior = check_soccer_state_behavior(ai, smx, smy);
-  // if (behavior == NORMAL_ATTACK_BEHAVIOR || behavior == BEHAVIOR_NOT_CHANGE) {
-  //   // do nothing, continue normal play
-  // } else if (behavior == ESCAPE_BEHAVIOR) {
-  //   fprintf(stderr, "Escaping in soccer normal play mode\n");
-  //   ai->st.state = ST_SOCCER_ESCAPE_ROTATE;
-  //   return;
-  // } else if (behavior == DEFEND_BEHAVIOR) {
-  //   // other behaviors can be added here
-  //   fprintf(stderr, "Defending in soccer normal play mode\n");
-  //   ai->st.state = ST_SOCCER_DEFEND_ROTATE;
-  //   return;
-  // }
+  int behavior = check_soccer_state_behavior(ai, smx, smy);
+  if (behavior == NORMAL_ATTACK_BEHAVIOR || behavior == BEHAVIOR_NOT_CHANGE) {
+    // do nothing, continue normal play
+  } else if (behavior == ESCAPE_BEHAVIOR) {
+    fprintf(stderr, "Escaping in soccer normal play mode\n");
+    ai->st.state = ST_SOCCER_ESCAPE_ROTATE;
+    return;
+  } else if (behavior == DEFEND_BEHAVIOR) {
+    // other behaviors can be added here
+    fprintf(stderr, "Defending in soccer normal play mode\n");
+    ai->st.state = ST_SOCCER_DEFEND_ROTATE;
+    return;
+  }
   switch (state) {
     case ST_SOCCER_CHECK_BEHAVIOR:
       ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
@@ -2472,49 +2472,30 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy)
       break;
 
     case ST_SOCCER_DEFEND_ROTATE:
-    if (check_anything_lost(ai)) {
-          fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
-          BT_motor_port_stop(LEFT_MOTOR, 0);
-          BT_motor_port_stop(RIGHT_MOTOR, 0);
-          ai->st.state = ST_SOCCER_DEFEND_DONE;
-          break;
-        }
-      if (!is_facing_target(ai, *smx, *smy, target_cx, target_cy)) {
-        fprintf(stderr, "Rotating to face defense target\n");
-        double ang_err = compute_angle_error_to_target(ai, *smx, *smy, target_cx, target_cy);
-        rotate_to_blob(ai, *smx, *smy, target_cx, target_cy);
-        correct_motion_vector(smx, smy, ang_err);
-        ai->st.state = ST_SOCCER_DEFEND_EMPTY;
+    {
+      if (is_facing_target(ai, *stored_smx, *stored_smy, target_cx, target_cy)) {
+        rotate_flag = -1;
+        ai->st.state = ST_SOCCER_DEFEND_MOVE; // facing target
+        target_angle = 0;
+        break;
       }
-      else {
+      // non-blocking rotate to target
+      rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
+ 
+      if (rotate_flag == -2) {
+        fprintf(stderr, "Facing target achieved in SOCCER mode\n");
         ai->st.state = ST_SOCCER_DEFEND_MOVE;
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
+        rotate_flag = -1; // reset rotate flag
+        correct_motion_vector(stored_smx, stored_smy, target_angle);
+        target_angle = 0;
       }
-      break;
-    case ST_SOCCER_DEFEND_EMPTY:
-      {
-        if (check_anything_lost(ai)) {
-          fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
-          BT_motor_port_stop(LEFT_MOTOR, 0);
-          BT_motor_port_stop(RIGHT_MOTOR, 0);
-          ai->st.state = ST_SOCCER_DEFEND_DONE;
-          break;
-        }
-        usleep(100*1000); // wait for a short while
-        ai->st.state = ST_SOCCER_DEFEND_MOVE;
-        break;
-      }  
+       break;
+    }
+
     case ST_SOCCER_DEFEND_MOVE:
       {
-        if (check_anything_lost(ai)) {
-          fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
-          BT_motor_port_stop(LEFT_MOTOR, 0);
-          BT_motor_port_stop(RIGHT_MOTOR, 0);
-          ai->st.state = ST_SOCCER_DEFEND_DONE;
-          break;
-        }
-
         if (is_close_to_target(ai, target_cx, target_cy)) {
           fprintf(stderr, "Reached defense target, holding position\n");
           ai->st.state = ST_SOCCER_DEFEND_DONE;
@@ -2531,7 +2512,6 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy)
         if (!is_close_to_target(ai, target_cx, target_cy)) {
           fprintf(stderr, "Moving to defense target\n");
           move_to_blob(ai, *smx, *smy, target_cx, target_cy, TARGET_DEFENSE_DIST);
-          usleep(100*1000); // wait for a short while
         }
         break;  
       }
@@ -2608,6 +2588,14 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
     return;
   }
 
+  if (check_anything_lost(ai)) {
+          fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+          ai->st.state = ST_SOCCER_ESCAPE_DONE;
+          return;
+        }
+
   switch (state)
   {
     case ST_SOCCER_CHECK_BEHAVIOR:
@@ -2620,27 +2608,29 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
       //   ai->st.state = ST_SOCCER_ESCAPE_DONE;
       //   break;
       // }
-      double rotate_target_x, rotate_target_y;
-      compute_escape_rotate_target(ai, &rotate_target_x, &rotate_target_y);
-      if (!is_facing_target(ai, *smx, *smy, rotate_target_x, rotate_target_y)) {
-        fprintf(stderr, "Rotating to escape target\n");
-        double ang_err = compute_angle_error_to_target(ai, *smx, *smy, rotate_target_x, rotate_target_y);
-        rotate_to_blob(ai, *smx, *smy, rotate_target_x, rotate_target_y);
-        correct_motion_vector(smx, smy, ang_err);
-        ai->st.state = ST_SOCCER_ESCAPE_EMPTY;
-      }else {
+      double target_x, target_y;
+      compute_escape_rotate_target(ai, &target_x, &target_y);
+       if (is_facing_target(ai, *stored_smx, *stored_smy, target_x, target_y)) {
+        rotate_flag = -1;
+        ai->st.state = ST_SOCCER_ESCAPE_MOVE; // facing target
+        target_angle = 0;
+        break;
+      }
+      fprintf(stderr, "[state 20]Rotating to face target in SOCCER mode\n");
+      // non-blocking rotate to target
+      rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
+ 
+      if (rotate_flag == -2) {
+        fprintf(stderr, "Facing target achieved in SOCCER mode\n");
         ai->st.state = ST_SOCCER_ESCAPE_MOVE;
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
+        rotate_flag = -1; // reset rotate flag
+        correct_motion_vector(stored_smx, stored_smy, target_angle);
+        target_angle = 0;
       }
-      break;
+       break;
     }
-  case ST_SOCCER_ESCAPE_EMPTY:
-      {
-        usleep(100*1000); // wait for a short while
-        ai->st.state = ST_SOCCER_ESCAPE_MOVE;
-        break;
-      }
   case ST_SOCCER_ESCAPE_MOVE:
     {
       BT_drive(LEFT_MOTOR, RIGHT_MOTOR, -55, -50); // move backward
@@ -2652,9 +2642,18 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
     }
   case ST_SOCCER_ESCAPE_DONE:
     {
-      // if (need_escape(ai, smx, smy)) {
-      //   ai->st.state = ST_SOCCER_ESCAPE_ROTATE;
-      // } 
+      if (ai == NULL || ai->st.ball == NULL || ai->st.self == NULL || ai->st.opp == NULL) {
+        fprintf(stderr, "Ball lost after escape, rotating to search\n");
+        BT_motor_port_stop(LEFT_MOTOR, 0);
+        BT_motor_port_stop(RIGHT_MOTOR, 0);
+        ai->st.state = ST_SOCCER_ESCAPE_DONE;
+         usleep(500*1000); // wait for a second
+        break;
+      }else {
+        fprintf(stderr, "Ball found after escape, resuming chase\n");
+        ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
+        rotate_flag = -1; // reset rotate flag
+      }
       sleep(1); // wait for a second
       break;
     }  
