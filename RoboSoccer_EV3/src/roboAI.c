@@ -1170,321 +1170,7 @@ static void soccer_test_mode(struct RoboAI *ai, double *smx, double *smy) {
 }
 
 static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
-  int state = ai->st.state;
-  fprintf(stderr, "In SOCCER mode, current state: %d\n", state);
-
-  // need a function to check ball position (return 1 if ball in attack zone, else if ball in edge return 0, return 2 if ball is very close to our goal -> need to defend)
-  int ball_position = check_ball_position(ai);
-  // need a function to detect obstacles (return 1 if obstacle detected, else 0)
-  int obstacle_status = detect_obstacle(ai);
-
-  switch (state) {
-    case ST_SOCCER_NORMAL_PLAY:
-      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
-        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
-        ai->st.state = ST_SOCCER_DEFEND_GOAL;
-        break;
-      }
-      if (ball_position == BALL_NOT_IN_ATTACK_ZONE) {
-        fprintf(stderr, "Ball not in attack zone, switching to edge play\n");
-        ai->st.state = ST_SOCCER_EDGE_PLAY;
-      } else {
-        fprintf(stderr, "Ball in attack zone, continuing normal play\n");
-        ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
-      }
-      break;
-
-    case ST_SOCCER_EDGE_PLAY:
-      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
-        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
-        ai->st.state = ST_SOCCER_DEFEND_GOAL;
-        break;
-      }
-      if (ball_position == BALL_IN_ATTACK_ZONE) {
-        fprintf(stderr, "Ball in attack zone, switching to normal play\n");
-        ai->st.state = ST_SOCCER_NORMAL_PLAY;
-      }
-      // need logic for robot to move to edge and position for attack
-      // TODOO: implement edge play logic
-      // ai->st.state = ST_SOCCER_ROTATE_TO_EDGE; // placeholder transition
-      break;
-
-    case ST_SOCCER_DEFEND_GOAL:
-      if (ball_position != BALL_VERY_CLOSE_TO_GOAL) {
-        fprintf(stderr, "Ball not very close to goal, switching to normal play\n");
-        ai->st.state = ST_SOCCER_NORMAL_PLAY;
-      } 
-      // need logic for robot to defend goal
-      // TODOO: implement defend goal logic
-      else if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
-        fprintf(stderr, "Ball very close to goal, continuing defend goal\n");
-        defend_goal(ai);
-      }
-      break;
-
-    case ST_SOCCER_ROTATE_TO_TARGET:
-    {
-      double target_x, target_y;
-      compute_target_position_soccer(ai, &target_x, &target_y);
-      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
-        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
-        ai->st.state = ST_SOCCER_DEFEND_GOAL;
-        break;
-      }
-      if (ball_position == BALL_NOT_IN_ATTACK_ZONE) {
-        fprintf(stderr, "Ball not in attack zone, switching to edge play\n");
-        ai->st.state = ST_SOCCER_EDGE_PLAY;
-      }
-      if (obstacle_status == OBSTACLE_DETECTED) {
-        fprintf(stderr, "Obstacle detected, switching to swerve obstacle\n");
-        last_state = ai->st.state;
-        ai->st.state = ST_SOCCER_SWERVE_OBSTACLE;
-        break;
-      }
-      // need logic for robot to rotate and move to ball simultaneously
-      // TODOO: implement rotate and move to ball logic
-      if (!is_facing_target(ai, ai->st.smx, ai->st.smy, target_x, target_y)) {
-        fprintf(stderr, "In soccer normal play: now rotating and moving to ball\n");
-        rotate_to_blob(ai, ai->st.smx, ai->st.smy, target_x, target_y);
-      } else {
-        fprintf(stderr, "Close to ball, switching to dribble ball\n");
-        ai->st.state = ST_SOCCER_MOVE_TO_TARGET;
-      }
-      break;
-    }
-
-    case ST_SOCCER_MOVE_TO_TARGET:
-    {
-      double target_x, target_y;
-      compute_target_position_soccer(ai, &target_x, &target_y);
-      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
-        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
-        ai->st.state = ST_SOCCER_DEFEND_GOAL;
-        break;
-      }
-      if (ball_position == BALL_NOT_IN_ATTACK_ZONE) {
-        fprintf(stderr, "Ball not in attack zone, switching to edge play\n");
-        ai->st.state = ST_SOCCER_EDGE_PLAY;
-      }
-      if (obstacle_status == OBSTACLE_DETECTED) {
-        fprintf(stderr, "Obstacle detected, switching to swerve obstacle\n");
-        last_state = ai->st.state;
-        ai->st.state = ST_SOCCER_SWERVE_OBSTACLE;
-        break;
-      }
-      // need logic for robot to move to target position
-      // TODOO: implement move to target logic
-      if (!is_facing_target(ai, ai->st.smx, ai->st.smy, target_x, target_y)) {
-        fprintf(stderr, "Not facing target yet, switching to rotate to target\n");
-        ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
-        break;
-      } else if (!is_close_to_target(ai, target_x, target_y)) {
-        fprintf(stderr, "Moving to target position\n");
-        move_to_blob(ai, ai->st.smx, ai->st.smy, target_x, target_y, TARGET_TARGET_DIST);
-      } else {
-        fprintf(stderr, "Reached target position, switching to rotate to ball\n");
-        ai->st.state = ST_SOCCER_ROTATE_TO_BALL;
-      }
-      break;
-    }
-
-    case ST_SOCCER_ROTATE_TO_BALL:
-      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
-        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
-        ai->st.state = ST_SOCCER_DEFEND_GOAL;
-        break;
-      }
-      if (ball_position == BALL_NOT_IN_ATTACK_ZONE) {
-        fprintf(stderr, "Ball not in attack zone, switching to edge play\n");
-        ai->st.state = ST_SOCCER_EDGE_PLAY;
-      }
-      if (obstacle_status == OBSTACLE_DETECTED) {
-        fprintf(stderr, "Obstacle detected, switching to swerve obstacle\n");
-        last_state = ai->st.state;
-        ai->st.state = ST_SOCCER_SWERVE_OBSTACLE;
-        break;
-      }
-      // need logic for robot to rotate to face ball
-      // TODOO: implement rotate to ball logic
-      if (!is_facing_target(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx, ai->st.ball->cy)) {
-        fprintf(stderr, "Rotating to face ball\n");
-        rotate_to_blob(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx, ai->st.ball->cy);
-      } else {
-        fprintf(stderr, "Facing ball, switching to move to ball\n");
-        ai->st.state = ST_SOCCER_MOVE_TO_BALL;
-      }
-      break;
-
-    case ST_SOCCER_MOVE_TO_BALL:
-      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
-        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
-        ai->st.state = ST_SOCCER_DEFEND_GOAL;
-        break;
-      }
-      if (ball_position == BALL_NOT_IN_ATTACK_ZONE) {
-        fprintf(stderr, "Ball not in attack zone, switching to edge play\n");
-        ai->st.state = ST_SOCCER_EDGE_PLAY;
-      }
-      if (obstacle_status == OBSTACLE_DETECTED) {
-        fprintf(stderr, "Obstacle detected, switching to swerve obstacle\n");
-        last_state = ai->st.state;
-        ai->st.state = ST_SOCCER_SWERVE_OBSTACLE;
-        break;
-      }
-      // need logic for robot to move to ball
-      // TODOO: implement move to ball logic
-      if (!is_facing_target(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx, ai->st.ball->cy)) {
-        fprintf(stderr, "Not facing ball yet, switching to rotate to ball\n");
-        ai->st.state = ST_SOCCER_ROTATE_TO_BALL;
-        break;
-      } else if (!is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
-        fprintf(stderr, "Moving to ball\n");
-        move_to_blob(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx, ai->st.ball->cy, TARGET_BALL_DIST);
-      } else {
-        fprintf(stderr, "Reached ball, switching to dribble ball\n");
-        ai->st.state = ST_SOCCER_DRIBBLE_BALL;
-      }
-      break;
-
-    case ST_SOCCER_DRIBBLE_BALL:
-      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
-        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
-        ai->st.state = ST_SOCCER_DEFEND_GOAL;
-        break;
-      }
-      if (ball_position == BALL_NOT_IN_ATTACK_ZONE) {
-        fprintf(stderr, "Ball not in attack zone, switching to edge play\n");
-        ai->st.state = ST_SOCCER_EDGE_PLAY;
-      }
-      if (obstacle_status == OBSTACLE_DETECTED) {
-        fprintf(stderr, "Obstacle detected, switching to swerve obstacle\n");
-        last_state = ai->st.state;
-        ai->st.state = ST_SOCCER_SWERVE_OBSTACLE;
-        break;
-      }
-      // need logic for robot to dribble ball towards goal
-      // TODOO: implement dribble ball towards goal logic and check for kicking position logic
-      if (!is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
-        fprintf(stderr, "Lost close proximity to ball, resuming chase\n");
-        ai->st.state = ST_SOCCER_MOVE_TO_BALL;
-        break;
-      } else {
-        fprintf(stderr, "Dribbling ball towards goal\n");
-        dribble_ball_towards_goal(ai);
-      }
-      if (is_in_kicking_position(ai)) {
-        fprintf(stderr, "In kicking position, switching to kick ball\n");
-        ai->st.state = ST_SOCCER_KICK_BALL;
-      } else {
-        fprintf(stderr, "Not in kicking position yet, continuing dribble\n");
-      }
-      break;
-
-    case ST_SOCCER_SWERVE_OBSTACLE:
-      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
-        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
-        ai->st.state = ST_SOCCER_DEFEND_GOAL;
-        break;
-      }
-      // need logic for robot to swerve around obstacle
-      // TODOO: implement swerve obstacle logic
-      if (obstacle_status == OBSTACLE_DETECTED) {
-        fprintf(stderr, "Still detecting obstacle, continuing swerve\n");
-        swerve_around_obstacle(ai, ai->st.opp);
-        break;
-      } else {
-        fprintf(stderr, "Obstacle cleared, resuming previous state\n");
-        ai->st.state = last_state;
-      }
-      break;
-
-    case ST_SOCCER_KICK_BALL:
-      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
-        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
-        ai->st.state = ST_SOCCER_DEFEND_GOAL;
-        break;
-      }
-      if (ball_position == BALL_NOT_IN_ATTACK_ZONE) {
-        fprintf(stderr, "Ball not in attack zone, switching to edge play\n");
-        ai->st.state = ST_SOCCER_EDGE_PLAY;
-      }
-      if (is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy) && obstacle_status == NO_OBSTACLE) {
-        fprintf(stderr, "Kicking the ball towards goal!\n");
-        kick_ball(ai);
-         usleep(500*1000); // wait for a second
-        ai->st.state = ST_SOCCER_NORMAL_PLAY; // after kick, return to normal play
-      } else {
-        fprintf(stderr, "Not close enough to ball to kick, resuming chase\n");
-        ai->st.state = ST_SOCCER_MOVE_TO_BALL;
-      }
-      break;
-
-    // TODO!!!
-    case ST_SOCCER_ROTATE_TO_EDGE:
-      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
-        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
-        ai->st.state = ST_SOCCER_DEFEND_GOAL;
-        break;
-      }
-      if (ball_position == BALL_IN_ATTACK_ZONE) {
-        fprintf(stderr, "Ball in attack zone, switching to normal play\n");
-        ai->st.state = ST_SOCCER_NORMAL_PLAY;
-      }
-      // need logic for robot to rotate to face edge
-      // TODOO: implement rotate to edge logic
-      // ai->st.state = ST_SOCCER_MOVE_TO_EDGE; // placeholder transition
-      break;
-
-    case ST_SOCCER_MOVE_TO_EDGE:
-      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
-        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
-        ai->st.state = ST_SOCCER_DEFEND_GOAL;
-        break;
-      }
-      if (ball_position == BALL_IN_ATTACK_ZONE) {
-        fprintf(stderr, "Ball in attack zone, switching to normal play\n");
-        ai->st.state = ST_SOCCER_NORMAL_PLAY;
-      }
-      // need logic for robot to move to edge position
-      // TODOO: implement move to edge logic
-      // ai->st.state = ST_SOCCER_ROTATE_AND_MOVE_TO_BALL; // placeholder transition
-      break;
-
-    // This rotate to kick is a vague idea, try whether it works
-    case ST_SOCCER_ROTATE_TO_KICK:
-      if (ball_position == BALL_VERY_CLOSE_TO_GOAL) {
-        fprintf(stderr, "Ball very close to goal, switching to defend goal\n");
-        ai->st.state = ST_SOCCER_DEFEND_GOAL;
-        break;
-      }
-      if (ball_position == BALL_IN_ATTACK_ZONE) {
-        fprintf(stderr, "Ball in attack zone, switching to normal play\n");
-        ai->st.state = ST_SOCCER_NORMAL_PLAY;
-      }
-      // need logic for robot to rotate very quickly so hits the ball using its side
-      // TODOO: implement rotate to kick logic
-      // after rotate to kick, should go back to normal play
-      // ai->st.state = ST_SOCCER_NORMAL_PLAY; // placeholder transition
-      break;
-
-    case ST_SOCCER_DONE:
-      if (ai == NULL || ai->st.ball == NULL) {
-        fprintf(stderr, "Ball lost after kick, rotating to search\n");
-        ai->st.state = ST_SOCCER_DONE;
-         usleep(500*1000); // wait for a second
-        break;
-      }else {
-        fprintf(stderr, "Ball found after kick, resuming chase\n");
-        ai->st.state = ST_SOCCER_NORMAL_PLAY;
-      }
-      usleep(10*1000); // wait for a second
-      break;
-    
-    default:
-      fprintf(stderr, "Unknown SOCCER state: %d\n", state);
-      ai->st.state = ST_SOCCER_NORMAL_PLAY; // reset to normal play
-      break;
-  }
+  // place holder
 }
 
 // TODOO: more detailed implementation
@@ -1542,15 +1228,8 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
     {
       double target_cx, target_cy;
       compute_target_position_soccer(ai, &target_cx, &target_cy);
-      // print self position and target position
-      fprintf(stderr, "Self position: (%.2f, %.2f), Target position: (%.2f, %.2f)\n", ai->st.self->cx, ai->st.self->cy, target_cx, target_cy);
 
-      // compute angle difference for debugging
-      // compute_angle_error_to_target
-      // double angle_error = compute_angle_error_to_target(ai, *stored_smx, *stored_smy, target_cx, target_cy);
-      // fprintf(stderr, "Angle error to target: %.2f degrees\n", angle_error);
       if (is_facing_target(ai, *stored_smx, *stored_smy, target_cx, target_cy)) {
-        //fprintf(stderr, "Rotating to face target in PENALTY mode\n");
         rotate_flag = -1;
         ai->st.state = ST_PENALTY_MOVE_TO_TARGET; // facing target
         target_angle = 0;
@@ -2448,19 +2127,19 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
 
   // ai->st.state = ST_SOCCER_ROTATE_TO_TARGET; // default next state
 
-  int behavior = check_soccer_state_behavior(ai, smx, smy);
-  if (behavior == NORMAL_ATTACK_BEHAVIOR || behavior == BEHAVIOR_NOT_CHANGE) {
-    // do nothing, continue normal play
-  } else if (behavior == ESCAPE_BEHAVIOR) {
-    fprintf(stderr, "Escaping in soccer normal play mode\n");
-    ai->st.state = ST_SOCCER_ESCAPE_ROTATE;
-    return;
-  } else if (behavior == DEFEND_BEHAVIOR) {
-    // other behaviors can be added here
-    fprintf(stderr, "Defending in soccer normal play mode\n");
-    ai->st.state = ST_SOCCER_DEFEND_ROTATE;
-    return;
-  }
+  // int behavior = check_soccer_state_behavior(ai, smx, smy);
+  // if (behavior == NORMAL_ATTACK_BEHAVIOR || behavior == BEHAVIOR_NOT_CHANGE) {
+  //   // do nothing, continue normal play
+  // } else if (behavior == ESCAPE_BEHAVIOR) {
+  //   fprintf(stderr, "Escaping in soccer normal play mode\n");
+  //   ai->st.state = ST_SOCCER_ESCAPE_ROTATE;
+  //   return;
+  // } else if (behavior == DEFEND_BEHAVIOR) {
+  //   // other behaviors can be added here
+  //   fprintf(stderr, "Defending in soccer normal play mode\n");
+  //   ai->st.state = ST_SOCCER_DEFEND_ROTATE;
+  //   return;
+  // }
   switch (state) {
     case ST_SOCCER_CHECK_BEHAVIOR:
       ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
@@ -2475,41 +2154,31 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
           ai->st.state = ST_SOCCER_NORMAL_PLAY_DONE;
           break;
         }
-        double target_cx, target_cy;
-        compute_target_position_soccer(ai, &target_cx, &target_cy);
-        if (!is_facing_target(ai, *smx, *smy, target_cx, target_cy)) {
-          fprintf(stderr, "Rotating to face target in SOCCER mode\n");
-          double ang_err = compute_angle_error_to_target(ai, *smx, *smy, target_cx, target_cy);
-          // if (fabs(ang_err - prev_rotate_deg) < 5.0) {
-          //   ai->st.state = ST_SOCCER_NORMAL_PLAY_EMPTY1;
-          //   break;
-          // }
-          rotate_to_blob(ai, *smx, *smy, target_cx, target_cy);
-          correct_motion_vector(smx, smy, ang_err);
-          prev_rotate_deg = ang_err;
-          ai->st.state = ST_SOCCER_NORMAL_PLAY_EMPTY1;
-        }
-        else {
-          ai->st.state = ST_SOCCER_MOVE_TO_TARGET;
-          BT_motor_port_stop(LEFT_MOTOR, 0);
-          BT_motor_port_stop(RIGHT_MOTOR, 0);
-        } 
-      break;
-      }
-    
-    case ST_SOCCER_NORMAL_PLAY_EMPTY1:
-      {
-         if (check_anything_lost(ai)) {
-          fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
-          BT_motor_port_stop(LEFT_MOTOR, 0);
-          BT_motor_port_stop(RIGHT_MOTOR, 0);
-          ai->st.state = ST_SOCCER_NORMAL_PLAY_DONE;
-          break;
-        }
-        usleep(100*1000); // wait for a short while
-        ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
+          double target_cx, target_cy;
+      compute_target_position_soccer(ai, &target_cx, &target_cy);
+
+      if (is_facing_target(ai, *stored_smx, *stored_smy, target_cx, target_cy)) {
+        rotate_flag = -1;
+        ai->st.state = ST_SOCCER_MOVE_TO_TARGET; // facing target
+        target_angle = 0;
         break;
-      }  
+      }
+
+      // non-blocking rotate to target
+      rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
+ 
+      if (rotate_flag == -2) {
+        fprintf(stderr, "Facing target achieved in SOCCER mode\n");
+        ai->st.state = ST_SOCCER_MOVE_TO_TARGET;
+        BT_motor_port_stop(LEFT_MOTOR, 0);
+        BT_motor_port_stop(RIGHT_MOTOR, 0);
+        rotate_flag = -1; // reset rotate flag
+        correct_motion_vector(stored_smx, stored_smy, target_angle);
+        target_angle = 0;
+      }
+       break;
+    }
+     
     case ST_SOCCER_MOVE_TO_TARGET:
       {
          if (check_anything_lost(ai)) {
@@ -2536,7 +2205,6 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
         if (!is_close_to_target(ai, target_cx, target_cy)) {
           fprintf(stderr, "Moving to target in SOCCER mode\n");
           move_to_blob(ai, *smx, *smy, target_cx, target_cy, TARGET_BALL_DIST);
-          usleep(100*1000); // wait for a short while
         }
       break;    
       }
@@ -2549,39 +2217,33 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
           ai->st.state = ST_SOCCER_NORMAL_PLAY_DONE;
           break;
         }
-        if (!is_facing_target(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy)) {
-          fprintf(stderr, "Rotating to face ball in SOCCER mode\n");
-          double ang_err = compute_angle_error_to_target(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy);
-          //   if (fabs(ang_err - prev_rotate_deg) < 5.0) {
-          //   ai->st.state = ST_SOCCER_NORMAL_PLAY_EMPTY2;
-          //   break;
-          // }
-          rotate_to_blob(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy);
-          correct_motion_vector(smx, smy, ang_err);
-          prev_rotate_deg = ang_err;
-          ai->st.state = ST_SOCCER_NORMAL_PLAY_EMPTY2;
-        }
-        else {
-          fprintf(stderr, "Facing ball in SOCCER mode, ready to kick\n");
-          ai->st.state = ST_SOCCER_MOVE_TO_BALL;
-          BT_motor_port_stop(LEFT_MOTOR, 0);
-          BT_motor_port_stop(RIGHT_MOTOR, 0);
-        }
+        // ball position
+        double ball_cx = ai->st.ball->cx;
+        double ball_cy = ai->st.ball->cy;
+        // double angle_error = compute_angle_error_to_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy);
+       if (is_facing_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy)) {
+        //fprintf(stderr, "Rotating to face target in PENALTY mode\n");
+        rotate_flag = -1;
+        ai->st.state = ST_SOCCER_MOVE_TO_BALL; // facing target
+        target_angle = 0;
         break;
       }
-    case ST_SOCCER_NORMAL_PLAY_EMPTY2:
-      {
-         if (check_anything_lost(ai)) {
-          fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
-          BT_motor_port_stop(LEFT_MOTOR, 0);
-          BT_motor_port_stop(RIGHT_MOTOR, 0);
-          ai->st.state = ST_SOCCER_NORMAL_PLAY_DONE;
-          break;
-        }
-        usleep(100*1000); // wait for a short while
-        ai->st.state = ST_SOCCER_ROTATE_TO_BALL;
-        break;
+
+      // non-blocking rotate to target
+      rotate_to_blob(ai, *stored_smx, *stored_smy, ball_cx, ball_cy);
+ 
+      if (rotate_flag == -2) {
+        fprintf(stderr, "Facing target achieved in PENALTY mode\n");
+        ai->st.state = ST_SOCCER_MOVE_TO_BALL;
+        BT_motor_port_stop(LEFT_MOTOR, 0);
+        BT_motor_port_stop(RIGHT_MOTOR, 0);
+        rotate_flag = -1; // reset rotate flag
+        correct_motion_vector(stored_smx, stored_smy, target_angle);
+        target_angle = 0;
       }
+      break;
+    }
+
     case ST_SOCCER_MOVE_TO_BALL:
       {
          if (check_anything_lost(ai)) {
@@ -2607,7 +2269,6 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
         if (!is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
           fprintf(stderr, "Moving to ball in SOCCER mode\n");
           move_to_blob(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy, TARGET_BALL_DIST);
-          usleep(100*1000); // wait for a short while
         }
         break;    
       }
