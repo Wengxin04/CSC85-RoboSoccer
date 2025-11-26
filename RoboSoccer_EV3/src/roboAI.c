@@ -2121,7 +2121,7 @@ static bool check_anything_lost(struct RoboAI *ai)
   return false;
 }
 
-void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
+void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx, double *stored_smy){
   int state = ai->st.state;
   static double prev_rotate_deg = 0.0;
 
@@ -2197,14 +2197,14 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
           BT_motor_port_stop(RIGHT_MOTOR, 0);
           break;
         }
-        if (!is_facing_target(ai, *smx, *smy, target_cx, target_cy)) {
+        if (!is_facing_target(ai, *stored_smx, *stored_smy, target_cx, target_cy)) {
           fprintf(stderr, "Lost facing target in SOCCER mode, rotating to face\n");
           ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
           break;
         }
         if (!is_close_to_target(ai, target_cx, target_cy)) {
           fprintf(stderr, "Moving to target in SOCCER mode\n");
-          move_to_blob(ai, *smx, *smy, target_cx, target_cy, TARGET_BALL_DIST);
+          move_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy, TARGET_BALL_DIST);
         }
       break;    
       }
@@ -2261,14 +2261,14 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
           BT_motor_port_stop(RIGHT_MOTOR, 0);
           break;
         }
-        if (!is_facing_target(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy)) {
+        if (!is_facing_target(ai, *stored_smx, *stored_smy, ai->st.ball->cx, ai->st.ball->cy)) {
           fprintf(stderr, "Lost facing ball in SOCCER mode, rotating to face\n");
           ai->st.state = ST_SOCCER_ROTATE_TO_BALL;
           break;
         }
         if (!is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
           fprintf(stderr, "Moving to ball in SOCCER mode\n");
-          move_to_blob(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy, TARGET_BALL_DIST);
+          move_to_blob(ai, *stored_smx, *stored_smy, ai->st.ball->cx, ai->st.ball->cy, TARGET_BALL_DIST);
         }
         break;    
       }
