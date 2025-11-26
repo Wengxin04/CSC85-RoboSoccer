@@ -55,6 +55,12 @@ extern int sx;              // Get access to the image size from the imageCaptur
 extern int sy;
 int laggy=0;
 
+// global variable for rotating 
+// rotate_flag: -1 not rotating, 0 rotating right, 1 rotating left
+extern int rotate_flag = -1; // global variable to indicate rotation status
+extern int  rotating_angle = 0.0; // global variable to store the angle rotated from gryo
+extern double target_angle = 0.0; // global variable to store the target angle from angle difference computation
+
 ////////////////////////////////////
 // Denosing data
 ////////////////////////////////////
@@ -1107,11 +1113,16 @@ static int detect_obstacle(struct RoboAI *ai) {
 #define NORMAL_ATTACK_BEHAVIOR 2
 #define EDGE_ATTACK_BEHAVIOR 3
 #define DEFEND_BEHAVIOR 4
+#define BEHAVIOR_NOT_CHANGE 0
 
 // TODO!
 static int check_soccer_state_behavior(struct RoboAI *ai, double *smx, double *smy) {
   // determine whether the ai should escape, defend, or attack (normal attack or edge attack)
   // return 1 for escape, 2 for normal attack, 3 for edge attack, 4 for defend
+
+  if (rotate_flag != -1){
+    return BEHAVIOR_NOT_CHANGE; // still rotating, do not change behavior
+  }
 
   bool escape = need_escape(ai, smx, smy);
   if (escape) {
@@ -1773,90 +1784,58 @@ static void chase_mode(struct RoboAI *ai, struct blob *blobs) {
 }
 
 // TODOO: implement the four functions below
+// change to non-blocking versions 
+// global varaible -> rotate-flag
+// global variable -> maybe use static
+// 目前是纯粹用陀螺仪角度来判断转了多少度
+// 考虑要不要加入image capture？
 void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, double target_y) {
-    if (ai->st.ball == NULL || ai->st.self == NULL) return;
+  //如果没有在转 -> init gryo and init global variable rotating angle!!
+  // and compute target angle here! 
+  const int ROTATE_SPEED = 30; // speed for rotation, to be tuned
+  if (rotate_flag == -1){
+    target_angle = compute_angle_error_to_target(ai, smx, smy, target_x, target_y);
+    // init gyro
+    int g_angle = 0, g_rate = 0;
+    // init gryo to 0
+    BT_read_gyro(GYRO_PORT, 1, &g_angle, &g_rate);
+    rotating_angle =g_angle;
 
-    // init current gyro reading
-    int gyro_angle = 0, gyro_rate = 0;
-    BT_read_gyro(GYRO_PORT, 1, &gyro_angle, &gyro_rate);
-    double curr_deg = (double)gyro_angle;
-
-    // compute angle error to ball
-    // compute target coordinate first
-    double ang_err_deg = compute_angle_error_to_target(ai, smx, smy, target_x, target_y);
-    if (isnan(ang_err_deg)) return;
-    if (fabs(ang_err_deg) < ALIGN_THRESH_DEG) return; 
-
-    double target_deg =  ang_err_deg; // >0 -> turn right, <0 -> turn left
-    const double THRESH = 5.0; // degrees
-    const double SPEED = 40.0;
-
-    fprintf(stderr, "quick_face_to_target: current angle %.2f, target angle %.2f, angle error %.2f\n",
-            curr_deg, target_deg, ang_err_deg);
-    // blocking turn to target using gyro
-    int rotate_flag = -1; // -1: not rotating, 0: to right , 1: to left
-    while (1)
-    {
-        BT_read_gyro(GYRO_PORT, 0, &gyro_angle, &gyro_rate);
-        curr_deg = (double)gyro_angle;
-        double err = target_deg - curr_deg;
-        while (err > 180.0) err -= 360.0;
-        while (err < -180.0) err += 360.0;
-
-        if (fabs(err) < THRESH)
-        {
-            fprintf(stderr, "quick_face_to_target: aligned to ball within %.2f degrees\n", THRESH);
-            BT_motor_port_stop(LEFT_MOTOR, 1);
-            BT_motor_port_stop(RIGHT_MOTOR, 1);
-            break;
-        }
-        // D
-        static double prev_ang_err = 0.0;
-        double ang_diff = err - prev_ang_err;
-        ang_diff = gyro_rate; 
-
-        // I 
-        static double prev_5_err_ang[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
-        static int err_index = 0;
-        prev_5_err_ang[err_index] = err;
-        err_index = (err_index + 1) % 5;
-        double ang_intg = 0.0;
-        for (int i = 0; i < 5; i++) {
-            ang_intg += prev_5_err_ang[i];
-        }
-
-        // turn PID control for angle
-        const double Kp_ang = 3.0; // 要调参
-        const double Kd_ang = 1.5;// 要调参
-        const double Ki_ang = 0.0;// 要
-
-        double up_ang = Kp_ang * err;
-        double ud_ang = Kd_ang * ang_diff;
-        double ui_ang = Ki_ang * ang_intg;
-
-        double turn = up_ang + ud_ang + ui_ang; // pid
-
-        prev_ang_err = err;
-
-        // err > 0 -> BALL IS AT ITSELF RIGHT -> TURN RIGHT
-        // err < 0 -> BALL IS AT ITSELF LEFT  -> TURN LEFT
-        // TO DO: SOLOVE -180&180 CROSSING ISSUE
-        if (err > 0 && rotate_flag == -1)
-        {
-            rotate_flag = 0;
-            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(SPEED*1.1), (char)(-SPEED));  // turn right
-           fprintf(stderr, "quick_face_to_target: turning right with angle %.2f and target angle %.2f\n", curr_deg, target_deg);
-        }
-        else if (err < 0 && rotate_flag == -1)
-        {
-            rotate_flag = 1;
-            BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (char)(-SPEED*1.1), (char)(SPEED));  // turn left
-            fprintf(stderr, "quick_face_to_target: turning left with angle %.2f and target angle %.2f\n", curr_deg, target_deg);
-        }
-        usleep(10000); // 10ms
+    if (target_angle < 0){
+      rotate_flag = 1; // left
+      // turn left
+      BT_drive(LEFT_MOTOR, RIGHT_MOTOR, -ROTATE_SPEED, ROTATE_SPEED);
+    } else {
+      rotate_flag = 0; // right
+      // turn right
+      BT_drive(LEFT_MOTOR, RIGHT_MOTOR, ROTATE_SPEED, -ROTATE_SPEED);
     }
-    BT_motor_port_stop(LEFT_MOTOR, 1);
-    BT_motor_port_stop(RIGHT_MOTOR, 1);
+  }else{
+    // this is during rotation
+    // read gyro as current rotated angle
+    int cur_angle = 0, cur_rate = 0;
+    BT_read_gyro(GYRO_PORT, 0, &cur_angle, &cur_rate);
+    rotating_angle = cur_angle; 
+    double angle_delta = target_angle - rotating_angle;
+
+    while (angle_delta > 180.0) angle_delta -= 360.0;
+    while (angle_delta < -180.0) angle_delta += 360.0;
+
+    bool rotate_limit =  fabs(rotating_angle) > 200.0;
+    bool left_done = (rotate_flag == 1) && (angle_delta >= -5.0);
+    bool right_done = (rotate_flag == 0) && (angle_delta <= 5.0);
+
+    if (left_done || right_done || rotate_limit){ // within 5 degrees
+      // stop rotation
+      BT_motor_port_stop(LEFT_MOTOR, 0);
+      BT_motor_port_stop(RIGHT_MOTOR, 0);
+      // reset and correct
+      rotate_flag = -1; // reset flag
+      rotating_angle = 0.0;
+      correct_motion_vector(&ai->st.smx, &ai->st.smy, target_angle);
+      target_angle = 0.0;
+    }
+  }
 }
 
 void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, double target_y, double target_dist) {
@@ -2468,7 +2447,7 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy){
   // ai->st.state = ST_SOCCER_ROTATE_TO_TARGET; // default next state
 
   int behavior = check_soccer_state_behavior(ai, smx, smy);
-  if (behavior == NORMAL_ATTACK_BEHAVIOR) {
+  if (behavior == NORMAL_ATTACK_BEHAVIOR || behavior == BEHAVIOR_NOT_CHANGE) {
     // do nothing, continue normal play
   } else if (behavior == ESCAPE_BEHAVIOR) {
     fprintf(stderr, "Escaping in soccer normal play mode\n");
@@ -2799,7 +2778,7 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy)
   // ai->st.state = ST_SOCCER_DEFEND_ROTATE; // default next state
 
   int behavior = check_soccer_state_behavior(ai, smx, smy);
-  if (behavior == DEFEND_BEHAVIOR) {
+  if (behavior == DEFEND_BEHAVIOR || behavior == BEHAVIOR_NOT_CHANGE) {
     // do nothing, continue defense
   } else if (behavior == ESCAPE_BEHAVIOR) {
     fprintf(stderr, "Escaping in soccer defense mode\n");
@@ -2952,7 +2931,7 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
   // ai->st.state = ST_SOCCER_ESCAPE_ROTATE; // default next state
 
   int behavior = check_soccer_state_behavior(ai, smx, smy);
-  if (behavior == ESCAPE_BEHAVIOR) {
+  if (behavior == ESCAPE_BEHAVIOR || behavior == BEHAVIOR_NOT_CHANGE) {
     // do nothing, continue escape
   } else if (behavior == DEFEND_BEHAVIOR) {
     fprintf(stderr, "Defending in soccer escape mode\n");
