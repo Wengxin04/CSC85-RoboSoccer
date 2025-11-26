@@ -1547,7 +1547,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
 
       // compute angle difference for debugging
       // compute_angle_error_to_target
-      double angle_error = compute_angle_error_to_target(ai, *stored_smx, *stored_smy, target_cx, target_cy);
+      // double angle_error = compute_angle_error_to_target(ai, *stored_smx, *stored_smy, target_cx, target_cy);
       // fprintf(stderr, "Angle error to target: %.2f degrees\n", angle_error);
       if (is_facing_target(ai, *stored_smx, *stored_smy, target_cx, target_cy)) {
         //fprintf(stderr, "Rotating to face target in PENALTY mode\n");
@@ -1556,15 +1556,10 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
         target_angle = 0;
         break;
       }
+
+      // non-blocking rotate to target
       rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
-      //if (rotate_flag != -1) {
-      //  fprintf(stderr, "Rotating to face target in PENALTY mode\n");
-      //  rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
-       // BT_motor_port_stop(LEFT_MOTOR, 0);
-        //BT_motor_port_stop(RIGHT_MOTOR, 0);
-        // correct_motion_vector(stored_smx, stored_smy, angle_error);
-      //  ai->st.state = ST_PENALTY_EMPTY1;
-    //  } 
+ 
       if (rotate_flag == -2) {
         fprintf(stderr, "Facing target achieved in PENALTY mode\n");
         ai->st.state = ST_PENALTY_MOVE_TO_TARGET;
@@ -1577,20 +1572,13 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
        break;
     }
 
-    case ST_PENALTY_EMPTY1:
-    {
-      usleep(10*1000);
-      ai->st.state = ST_PENALTY_MOVE_TO_TARGET;
-      break;
-    }
-
     case ST_PENALTY_MOVE_TO_TARGET:
     {
       // calculate target position
       double tgt_cx, tgt_cy;
       compute_target_position_soccer(ai, &tgt_cx, &tgt_cy);
       if (is_close_to_target(ai, tgt_cx, tgt_cy)) {
-       ai->st.state = ST_PENALTY_DONE;
+       ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
         double de = 0, dd = 0;
       double d = compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd, tgt_cx, tgt_cy);
         fprintf(stderr, "change to Rotating to ball in PENALTY mode with distance difference: %.2f\n", d);
@@ -1611,7 +1599,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
        // usleep(100*1000); 
       }
       else if (is_close_to_target(ai, tgt_cx, tgt_cy)) {
-        ai->st.state = ST_PENALTY_DONE;
+        ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
         double de = 0, dd = 0;
       double d = compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd, tgt_cx, tgt_cy);
         fprintf(stderr, "change to Rotating to ball in PENALTY mode with distance difference: %.2f\n", d);
@@ -1626,29 +1614,29 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
     // ball position
     double ball_cx = ai->st.ball->cx;
     double ball_cy = ai->st.ball->cy;
-    double angle_error = compute_angle_error_to_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy);
-      if (!is_facing_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy)) {
-        fprintf(stderr, "Rotating to face ball in PENALTY mode\n");
-        rotate_to_blob(ai, *stored_smx, *stored_smy, ai->st.ball->cx, ai->st.ball->cy);
-      //  correct_motion_vector(stored_smx, stored_smy, angle_error);
-      
-       //  ai->st.state = ST_PENALTY_EMPTY2;
-      } else {
-        fprintf(stderr, "Facing ball achieved in PENALTY mode\n");
+    // double angle_error = compute_angle_error_to_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy);
+       if (is_facing_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy)) {
+        //fprintf(stderr, "Rotating to face target in PENALTY mode\n");
+        rotate_flag = -1;
+        ai->st.state = ST_PENALTY_MOVE_TO_BALL; // facing target
+        target_angle = 0;
+        break;
+      }
+
+      // non-blocking rotate to target
+      rotate_to_blob(ai, *stored_smx, *stored_smy, ball_cx, ball_cy);
+ 
+      if (rotate_flag == -2) {
+        fprintf(stderr, "Facing target achieved in PENALTY mode\n");
         ai->st.state = ST_PENALTY_MOVE_TO_BALL;
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
+        rotate_flag = -1; // reset rotate flag
+        correct_motion_vector(stored_smx, stored_smy, target_angle);
+        target_angle = 0;
       }
       break;
     }
-
-    case ST_PENALTY_EMPTY2:
-    {
-      usleep(10*1000);
-      ai->st.state = ST_PENALTY_MOVE_TO_BALL;
-      break;
-    }
-    
 
     case ST_PENALTY_MOVE_TO_BALL:
     {
@@ -1676,7 +1664,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
         // *stored_smy = ai->st.smy;
         // 好像是motion vector 的错误导致角度计算又有问题.....
         // 实在不行这里stored 不更新了，或者加noise handling！
-        usleep(100*1000); // avoid smx/smy being zero/错误计算
+       //  usleep(100*1000); // avoid smx/smy being zero/错误计算
       }
       else if (is_close_to_ball(ai, b_cx, b_cy)) {
         ai->st.state = ST_PENALTY_KICK_BALL;
