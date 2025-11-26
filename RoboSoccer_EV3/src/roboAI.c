@@ -202,7 +202,7 @@ static int check_soccer_state_behavior(struct RoboAI *ai, double *smx, double *s
 
 // Tuning knobs for penalty routine
 enum {
-    FACE_THRESH_DEG   = 7,    // tweak
+    FACE_THRESH_DEG   = 10,    // tweak
     ALIGN_THRESH_DEG  = 7,   // tweak
     TARGET_BALL_DIST  = 100,   // pixels; tweak to your scale
     TARGET_TARGET_DIST= 100,   // pixels; tweak to your scale
@@ -1541,7 +1541,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       // break;
     {
       double target_cx, target_cy;
-      compute_target_position(ai, &target_cx, &target_cy);
+      compute_target_position_soccer(ai, &target_cx, &target_cy);
       // print self position and target position
       fprintf(stderr, "Self position: (%.2f, %.2f), Target position: (%.2f, %.2f)\n", ai->st.self->cx, ai->st.self->cy, target_cx, target_cy);
 
@@ -1549,6 +1549,13 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       // compute_angle_error_to_target
       double angle_error = compute_angle_error_to_target(ai, *stored_smx, *stored_smy, target_cx, target_cy);
       // fprintf(stderr, "Angle error to target: %.2f degrees\n", angle_error);
+      if (is_facing_target(ai, *stored_smx, *stored_smy, target_cx, target_cy)) {
+        //fprintf(stderr, "Rotating to face target in PENALTY mode\n");
+        rotate_flag = -1;
+        ai->st.state = ST_PENALTY_MOVE_TO_TARGET; // facing target
+        target_angle = 0;
+        break;
+      }
       rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
       //if (rotate_flag != -1) {
       //  fprintf(stderr, "Rotating to face target in PENALTY mode\n");
@@ -1560,7 +1567,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
     //  } 
       if (rotate_flag == -2) {
         fprintf(stderr, "Facing target achieved in PENALTY mode\n");
-        ai->st.state = ST_PENALTY_DONE;
+        ai->st.state = ST_PENALTY_MOVE_TO_TARGET;
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
         rotate_flag = -1; // reset rotate flag
@@ -1583,7 +1590,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       double tgt_cx, tgt_cy;
       compute_target_position_soccer(ai, &tgt_cx, &tgt_cy);
       if (is_close_to_target(ai, tgt_cx, tgt_cy)) {
-       ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
+       ai->st.state = ST_PENALTY_DONE;
         double de = 0, dd = 0;
       double d = compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd, tgt_cx, tgt_cy);
         fprintf(stderr, "change to Rotating to ball in PENALTY mode with distance difference: %.2f\n", d);
@@ -1601,7 +1608,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       else if (!is_close_to_target(ai, tgt_cx, tgt_cy)) {
        fprintf(stderr, "Moving to target in PENALTY mode\n");
         move_to_blob(ai, *stored_smx, *stored_smy, tgt_cx, tgt_cy, TARGET_TARGET_DIST);
-        usleep(100*1000); 
+       // usleep(100*1000); 
       }
       else if (is_close_to_target(ai, tgt_cx, tgt_cy)) {
         ai->st.state = ST_PENALTY_DONE;
@@ -1970,7 +1977,7 @@ void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, do
           dist, dist_err, d_dist, forward_speed, up_dist, ud_dist, turn, up_ang, ud_ang, ui_ang, left, right, ang_err);
 
   BT_drive(LEFT_MOTOR, RIGHT_MOTOR, left, right);
-  usleep(1000); // 10ms
+ // usleep(1000); // 10ms
 }
 
 // void align_to_goal_with_ball(struct RoboAI *ai, double smx, double smy) {
