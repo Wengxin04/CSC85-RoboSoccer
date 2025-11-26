@@ -1649,6 +1649,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
        // fprintf(stderr, "change to Aligning to goal in PENALTY mode with distance difference: %.2f\n", compute_distance_error(ai));
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
+        break;
       }
 
       if (!is_facing_target(ai, *stored_smx, *stored_smy, b_cx, b_cy)) {
