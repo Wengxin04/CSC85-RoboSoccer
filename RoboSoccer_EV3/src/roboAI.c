@@ -1541,7 +1541,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       // break;
     {
       double target_cx, target_cy;
-      compute_target_position_soccer(ai, &target_cx, &target_cy);
+      compute_target_position(ai, &target_cx, &target_cy);
       // print self position and target position
       fprintf(stderr, "Self position: (%.2f, %.2f), Target position: (%.2f, %.2f)\n", ai->st.self->cx, ai->st.self->cy, target_cx, target_cy);
 
@@ -1549,19 +1549,23 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       // compute_angle_error_to_target
       double angle_error = compute_angle_error_to_target(ai, *stored_smx, *stored_smy, target_cx, target_cy);
       // fprintf(stderr, "Angle error to target: %.2f degrees\n", angle_error);
-
-      if (!is_facing_target(ai, *stored_smx, *stored_smy, target_cx, target_cy)) {
-        fprintf(stderr, "Rotating to face target in PENALTY mode\n");
-        rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
-        BT_motor_port_stop(LEFT_MOTOR, 0);
-        BT_motor_port_stop(RIGHT_MOTOR, 0);
-        correct_motion_vector(stored_smx, stored_smy, angle_error);
-        ai->st.state = ST_PENALTY_EMPTY1;
-      } else {
+      rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
+      //if (rotate_flag != -1) {
+      //  fprintf(stderr, "Rotating to face target in PENALTY mode\n");
+      //  rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
+       // BT_motor_port_stop(LEFT_MOTOR, 0);
+        //BT_motor_port_stop(RIGHT_MOTOR, 0);
+        // correct_motion_vector(stored_smx, stored_smy, angle_error);
+      //  ai->st.state = ST_PENALTY_EMPTY1;
+    //  } 
+      if (rotate_flag == -2) {
         fprintf(stderr, "Facing target achieved in PENALTY mode\n");
-        ai->st.state = ST_PENALTY_MOVE_TO_TARGET;
+        ai->st.state = ST_PENALTY_DONE;
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
+        rotate_flag = -1; // reset rotate flag
+        correct_motion_vector(stored_smx, stored_smy, target_angle);
+        target_angle = 0;
       }
        break;
     }
@@ -1577,7 +1581,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
     {
       // calculate target position
       double tgt_cx, tgt_cy;
-      compute_target_position_soccer(ai, &tgt_cx, &tgt_cy);
+      compute_target_position(ai, &tgt_cx, &tgt_cy);
       if (is_close_to_target(ai, tgt_cx, tgt_cy)) {
        ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
         double de = 0, dd = 0;
@@ -1600,7 +1604,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
         usleep(100*1000); 
       }
       else if (is_close_to_target(ai, tgt_cx, tgt_cy)) {
-        ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
+        ai->st.state = ST_PENALTY_DONE;
         double de = 0, dd = 0;
       double d = compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd, tgt_cx, tgt_cy);
         fprintf(stderr, "change to Rotating to ball in PENALTY mode with distance difference: %.2f\n", d);
@@ -1619,9 +1623,9 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       if (!is_facing_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy)) {
         fprintf(stderr, "Rotating to face ball in PENALTY mode\n");
         rotate_to_blob(ai, *stored_smx, *stored_smy, ai->st.ball->cx, ai->st.ball->cy);
-        correct_motion_vector(stored_smx, stored_smy, angle_error);
+      //  correct_motion_vector(stored_smx, stored_smy, angle_error);
       
-         ai->st.state = ST_PENALTY_EMPTY2;
+       //  ai->st.state = ST_PENALTY_EMPTY2;
       } else {
         fprintf(stderr, "Facing ball achieved in PENALTY mode\n");
         ai->st.state = ST_PENALTY_MOVE_TO_BALL;
@@ -1794,6 +1798,7 @@ void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, 
   // and compute target angle here! 
   const int ROTATE_SPEED = 30; // speed for rotation, to be tuned
   if (rotate_flag == -1){
+    fprintf(stderr, "Starting rotation to target blob at (%.2f, %.2f)\n", target_x, target_y);
     target_angle = compute_angle_error_to_target(ai, smx, smy, target_x, target_y);
     // init gyro
     int g_angle = 0, g_rate = 0;
@@ -1826,14 +1831,15 @@ void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, 
     bool right_done = (rotate_flag == 0) && (angle_delta <= 5.0);
 
     if (left_done || right_done || rotate_limit){ // within 5 degrees
-      // stop rotation
+      // stop 
+      fprintf(stderr, "Rotation to target blob completed. Target angle: %.2f, Rotated angle: %.2f\n", target_angle, rotating_angle);
       BT_motor_port_stop(LEFT_MOTOR, 0);
       BT_motor_port_stop(RIGHT_MOTOR, 0);
       // reset and correct
-      rotate_flag = -1; // reset flag
+      rotate_flag = -2; // reset flag
       rotating_angle = 0.0;
-      correct_motion_vector(&ai->st.smx, &ai->st.smy, target_angle);
-      target_angle = 0.0;
+  //    correct_motion_vector(&ai->st.smx, &ai->st.smy, target_angle);
+   //   target_angle = 0.0;
     }
   }
 }
