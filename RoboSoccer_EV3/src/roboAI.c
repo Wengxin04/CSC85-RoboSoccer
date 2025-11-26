@@ -2163,7 +2163,7 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx, double *stor
         target_angle = 0;
         break;
       }
-
+      fprintf(stderr, "[state 20]Rotating to face target in SOCCER mode\n");
       // non-blocking rotate to target
       rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
  
@@ -2298,6 +2298,7 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx, double *stor
       }else {
         fprintf(stderr, "Ball found after kick, resuming chase\n");
         ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
+        rotate_flag = -1; // reset rotate flag
       }
       usleep(10*1000); // wait for a second
       break;  
