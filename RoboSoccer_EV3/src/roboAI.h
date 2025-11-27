@@ -90,9 +90,12 @@
 #define ST_SOCCER_NORMAL_PLAY_DONE        29
 
 // edge play substates: if the ball is near the edge of the field (exit edge play when the ball is back to normal play area)
-#define ST_SOCCER_ROTATE_TO_EDGE 30
-#define ST_SOCCER_MOVE_TO_EDGE 31
-#define ST_SOCCER_ROTATE_TO_KICK 32
+#define ST_SOCCER_EDGE_ROTATE_TARGET 30
+#define ST_SOCCER_EDGE_MOVE_TARGET 31
+#define ST_SOCCER_EDGE_ROTATE_BALL 32
+#define ST_SOCCER_EDGE_MOVE_BALL 33
+#define ST_SOCCER_EDGE_KICK 34
+#define ST_SOCCER_EDGE_DONE 39
 
 // defend goal substates
 #define ST_SOCCER_DEFEND_ROTATE 40
@@ -249,5 +252,7 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy);
 void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy);
 
 void rotate_right_kick(struct RoboAI *ai);
+void rotate_left_kick(struct RoboAI *ai);
+void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy);
 
 #endif
