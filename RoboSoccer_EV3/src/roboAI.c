@@ -1843,7 +1843,7 @@ double compute_angle_error_to_target(struct RoboAI *ai, double smx, double smy, 
     fprintf(stderr, "compute_angle_error_to_target: direction vectors: heading (%.2f, %.2f), motion (%.2f, %.2f), dot %.2f and target(%.2f, %.2f) and target dot %.2f\n",
             hdx, hdy, smx, smy, dot_heading_motion, bnx, bny, hdx*bnx + hdy*bny);
     // to do: fix 当机器人背对着球
-    if ((smx != 0 || smy!= 0) && dot_heading_motion < -0.5) {
+    if ((smx != 0 || smy!= 0) && dot_heading_motion < 0) {
         // 校准robot heading 方向， 根据motion vector
         // 运动方向 == 头方向
         hdx = -hdx;
@@ -2468,9 +2468,9 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
 
 void rotate_left_kick(struct RoboAI *ai)
 {
-  BT_timed_motor_port_start(RIGHT_MOTOR, 100, 50, 400, 50);
-  BT_timed_motor_port_start(LEFT_MOTOR, 100, 50, 400, 50);
-  usleep(600*1000); // wait for 600 ms
+ // BT_timed_motor_port_start(RIGHT_MOTOR, 100, 50, 400, 50);
+  //BT_timed_motor_port_start(LEFT_MOTOR, 100, 50, 400, 50);
+  // usleep(600*1000); // wait for 600 ms
   BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 500, 100);
   BT_timed_motor_port_start(LEFT_MOTOR, -100, 100, 500, 100);
   usleep(350*1000); // wait for 350 ms
@@ -2484,9 +2484,9 @@ void rotate_left_kick(struct RoboAI *ai)
 
 void rotate_right_kick(struct RoboAI *ai)
 {
-  BT_timed_motor_port_start(RIGHT_MOTOR, 100, 50, 400, 50);
-  BT_timed_motor_port_start(LEFT_MOTOR, 100, 50, 400, 50);
-  usleep(600*1000); // wait for 600 ms
+ // BT_timed_motor_port_start(RIGHT_MOTOR, 100, 50, 400, 50);
+  //BT_timed_motor_port_start(LEFT_MOTOR, 100, 50, 400, 50);
+  // usleep(600*1000); // wait for 600 ms
   BT_timed_motor_port_start(RIGHT_MOTOR, -100, 100, 500, 100);
   BT_timed_motor_port_start(LEFT_MOTOR, 100, 100, 500, 100);
   usleep(350*1000); // wait for 350 ms
@@ -2590,7 +2590,8 @@ void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy)
         BT_motor_port_stop(RIGHT_MOTOR, 0);
         rotate_flag = -1; // reset rotate flag
         correct_motion_vector(smx, smy, target_angle);
-        target_angle = 0;
+        target_angle = 0.0;
+        rotating_angle = 0.0;
       }  
     break;
   }
@@ -2614,6 +2615,10 @@ void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy)
         }
 
       if (!is_facing_target(ai, *smx, *smy, target_cx, target_cy)) {
+        fprintf(stderr, "state[31]: check rotate_flag = %d, rotating_angle = %.2f, target_angle = %.2f\n", rotate_flag, rotating_angle, target_angle);
+        rotate_flag = -1; // reset rotate flag
+        rotating_angle = 0;
+        target_angle = 0.0;
         ai->st.state = ST_SOCCER_EDGE_ROTATE_TARGET;
         break;
       }
