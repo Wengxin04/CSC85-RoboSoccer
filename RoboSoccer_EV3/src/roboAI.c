@@ -199,6 +199,7 @@ static void chase_mode(struct RoboAI *ai, struct blob *blobs);
 
 static void soccer_test_mode(struct RoboAI *ai, double* smx, double* smy);
 static int check_soccer_state_behavior(struct RoboAI *ai, double *smx, double *smy);
+static bool check_anything_lost(struct RoboAI *ai);
 
 // Tuning knobs for penalty routine
 enum {
@@ -1124,7 +1125,7 @@ static int check_soccer_state_behavior(struct RoboAI *ai, double *smx, double *s
   // determine whether the ai should escape, defend, or attack (normal attack or edge attack)
   // return 1 for escape, 2 for normal attack, 3 for edge attack, 4 for defend
 
-  if (rotate_flag >0){
+  if (rotate_flag >0 || check_anything_lost(ai)) {
     return BEHAVIOR_NOT_CHANGE; // still rotating, do not change behavior
   }
 
@@ -1149,22 +1150,18 @@ static void soccer_test_mode(struct RoboAI *ai, double *smx, double *smy) {
   if (state >= 10 && state < 20) {
     fprintf(stderr, "Escaping!\n");
     soccer_escape_mode(ai, smx, smy);
-    return;
   } else if (state >= 40 && state < 50) {
     fprintf(stderr, "Defending goal\n");
     soccer_defense_mode(ai, smx, smy);
-    return;
   } else if (state >= 20 && state < 30) {
     fprintf(stderr, "Normal attack mode\n");
     soccer_normal_play_mode(ai, smx, smy);
-    return;
   } else if (state >= 30 && state < 40) {
     fprintf(stderr, "Edge attack mode\n");
     // soccer_edge_play_mode(ai, smx, smy);
-    return;
-  }else {
+  } else {
     fprintf(stderr, "In SOCCER test mode, current state: %d\n", state);
-    ai->st.state = 20; // set to normal play mode
+    ai->st.state = ST_SOCCER_ROTATE_TO_TARGET; // set to normal play mode
     soccer_normal_play_mode(ai, smx, smy);
   }
 
@@ -2268,14 +2265,6 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy)
   double target_cx, target_cy;
   compute_defense_target(ai, &target_cx, &target_cy);
 
-  if (check_anything_lost(ai)) {
-          fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
-          BT_motor_port_stop(LEFT_MOTOR, 0);
-          BT_motor_port_stop(RIGHT_MOTOR, 0);
-          ai->st.state = ST_SOCCER_DEFEND_DONE;
-          return;
-        }
-
   switch(state){
     case ST_SOCCER_CHECK_BEHAVIOR:
       ai->st.state = ST_SOCCER_DEFEND_ROTATE;
@@ -2283,6 +2272,14 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy)
 
     case ST_SOCCER_DEFEND_ROTATE:
     {
+      if (check_anything_lost(ai)) {
+          fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+          ai->st.state = ST_SOCCER_DEFEND_DONE;
+          return;
+        }
+
       if (is_facing_target(ai, *smx, *smy, target_cx, target_cy) && rotate_flag == -1) {
         ai->st.state = ST_SOCCER_DEFEND_MOVE; // facing target
         break;
@@ -2304,6 +2301,14 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy)
 
     case ST_SOCCER_DEFEND_MOVE:
       {
+        if (check_anything_lost(ai)) {
+          fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+          ai->st.state = ST_SOCCER_DEFEND_DONE;
+          return;
+        }
+
         if (is_close_to_target(ai, target_cx, target_cy)) {
           fprintf(stderr, "Reached defense target, holding position\n");
           ai->st.state = ST_SOCCER_DEFEND_DONE;
@@ -2396,14 +2401,6 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
     return;
   }
 
-  if (check_anything_lost(ai)) {
-          fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
-          BT_motor_port_stop(LEFT_MOTOR, 0);
-          BT_motor_port_stop(RIGHT_MOTOR, 0);
-          ai->st.state = ST_SOCCER_ESCAPE_DONE;
-          return;
-        }
-
   switch (state)
   {
     case ST_SOCCER_CHECK_BEHAVIOR:
@@ -2416,6 +2413,14 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
       //   ai->st.state = ST_SOCCER_ESCAPE_DONE;
       //   break;
       // }
+      if (check_anything_lost(ai)) {
+          fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+          ai->st.state = ST_SOCCER_ESCAPE_DONE;
+          return;
+        }
+
       double target_x, target_y;
       compute_escape_rotate_target(ai, &target_x, &target_y);
        if (is_facing_target(ai, *smx, *smy, target_x, target_y) && rotate_flag == -1) {
@@ -2439,6 +2444,14 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
     }
   case ST_SOCCER_ESCAPE_MOVE:
     {
+      if (check_anything_lost(ai)) {
+          fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+          ai->st.state = ST_SOCCER_ESCAPE_DONE;
+          return;
+        }
+
       BT_drive(LEFT_MOTOR, RIGHT_MOTOR, -55, -50); // move backward
       sleep(1); // move for 0.5 second
       BT_motor_port_stop(LEFT_MOTOR, 0);
