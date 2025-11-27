@@ -2660,4 +2660,11 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
   }    
 }
 
+void rotate_right_kick(struct RoboAI *ai)
+{
+   BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 200, 100);
+   BT_timed_motor_port_start(LEFT_MOTOR, -100, 100, 200, 100);
+   usleep(400*1000); // wait for 300 ms
+}
+
 
