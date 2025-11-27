@@ -1160,12 +1160,12 @@ static void soccer_test_mode(struct RoboAI *ai, double *smx, double *smy) {
     return;
   } else if (state >= 30 && state < 40) {
     fprintf(stderr, "Edge attack mode\n");
-    // soccer_edge_play_mode(ai, smx, smy);
+    soccer_edge_play_mode(ai, smx, smy);
     return;
   }else {
     fprintf(stderr, "In SOCCER test mode, current state: %d\n", state);
-    ai->st.state = 20; // set to normal play mode
-    soccer_normal_play_mode(ai, smx, smy);
+    ai->st.state = 30; // set to normal play mode
+     soccer_edge_play_mode(ai, smx, smy);
   }
 
   // soccer_normal_play_mode(ai, smx, smy);
@@ -2466,7 +2466,7 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
   }    
 }
 
-void rotate_right_kick(struct RoboAI *ai)
+void rotate_left_kick(struct RoboAI *ai)
 {
   BT_timed_motor_port_start(RIGHT_MOTOR, 100, 50, 400, 50);
   BT_timed_motor_port_start(LEFT_MOTOR, 100, 50, 400, 50);
@@ -2482,4 +2482,277 @@ void rotate_right_kick(struct RoboAI *ai)
 
 }
 
+void rotate_right_kick(struct RoboAI *ai)
+{
+  BT_timed_motor_port_start(RIGHT_MOTOR, 100, 50, 400, 50);
+  BT_timed_motor_port_start(LEFT_MOTOR, 100, 50, 400, 50);
+  usleep(600*1000); // wait for 600 ms
+  BT_timed_motor_port_start(RIGHT_MOTOR, -100, 100, 500, 100);
+  BT_timed_motor_port_start(LEFT_MOTOR, 100, 100, 500, 100);
+  usleep(350*1000); // wait for 350 ms
+  BT_timed_motor_port_start(KICK_MOTOR, 100, 0, 100, 100);
+   usleep(600*1000); // wait for 600 ms
+
+  BT_timed_motor_port_start(KICK_MOTOR, -80, 100, 200, 100);
+  usleep(300*1000); // wait for 250 ms
+
+}
+
+// 上下左右 0123
+static int compute_ball_nearest_edge(struct RoboAI *ai, double *edge_x, double *edge_y)
+{
+  if (!ai || !ai->st.ball) return -1;
+
+  double bx = ai->st.ball->cx;
+  double by = ai->st.ball->cy;
+
+  double dist_up    = by;         // distance to top (y=0)
+  double dist_down  = (double)sy - by;  // distance to bottom (y=sy)
+  double dist_left  = bx;        // distance to left (x=0)
+  double dist_right = (double)sx - bx; // distance to right (x=sx)
+
+  double min_dist = dist_up;
+  int edge_id = 0; // 0: up
+
+  if (dist_down < min_dist)  { min_dist = dist_down;  edge_id = 1; }
+  if (dist_left < min_dist)  { min_dist = dist_left;  edge_id = 2; }
+  if (dist_right < min_dist) { min_dist = dist_right; edge_id = 3; }
+    
+  if (edge_x){
+    if (edge_id == 2)      *edge_x = 0.0;          // left edge
+    else if (edge_id == 3) *edge_x = (double)sx;   // right edge
+    else                   *edge_x = bx;           // same x as ball
+  }
+
+  if (edge_y){
+    if (edge_id == 0)      *edge_y = 0.0;          // top edge
+    else if (edge_id == 1) *edge_y = (double)sy;   // bottom edge
+    else                   *edge_y = by;           // same y as ball
+  }
+
+  return edge_id;
+}
+
+#define DELTA_TO_TARGET 150
+void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy)
+{
+  int state = ai->st.state;
+  if (check_anything_lost(ai)) {
+          fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+          ai->st.state = ST_SOCCER_EDGE_DONE;
+          return;
+    }
+
+  double edge_x, edge_y;
+  int edge_id = compute_ball_nearest_edge(ai, &edge_x, &edge_y);
+  fprintf(stderr, "In SOCCER[EDGE] mode, current state: %d, nearest edge id: %d with edge (%.2f, %.2f)\n", state, edge_id, edge_x, edge_y);
+  
+  
+  // edge_id 可在后续逻辑中使用以判断具体是哪一条边
+  switch (state)
+  {
+  case ST_SOCCER_EDGE_ROTATE_TARGET:
+  {
+    if (is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
+          ai->st.state = ST_SOCCER_EDGE_KICK;
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+          break;
+        }
+    double target_cx, target_cy;
+    if (edge_id == 0 || edge_id == 1) {
+        // top or bottom edge, keep x same as ball, move y by delta
+        target_cx = ai->st.ball->cx;
+        target_cy =  ai->st.ball->cy + (edge_id == 0 ? DELTA_TO_TARGET : -DELTA_TO_TARGET);
+    } else {
+        target_cx = ai->st.ball->cx + (edge_id == 2 ? DELTA_TO_TARGET : -DELTA_TO_TARGET);
+        target_cy = ai->st.ball->cy;
+    }
+    if (is_close_to_target(ai, target_cx, target_cy)) {
+          ai->st.state = ST_SOCCER_EDGE_ROTATE_BALL;
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+          break;
+        }
+
+   if (is_facing_target(ai, *smx, *smy, target_cx, target_cy) && rotate_flag == -1) {
+        ai->st.state = ST_SOCCER_EDGE_MOVE_TARGET; // facing target
+        break;
+      }
+    rotate_to_blob(ai, *smx, *smy, target_cx, target_cy);
+ 
+      if (rotate_flag == -2) {
+        fprintf(stderr, "Facing target achieved in SOCCER EDGE mode\n");
+        ai->st.state = ST_SOCCER_EDGE_MOVE_TARGET;
+        BT_motor_port_stop(LEFT_MOTOR, 0);
+        BT_motor_port_stop(RIGHT_MOTOR, 0);
+        rotate_flag = -1; // reset rotate flag
+        correct_motion_vector(smx, smy, target_angle);
+        target_angle = 0;
+      }  
+    break;
+  }
+
+  case ST_SOCCER_EDGE_MOVE_TARGET:
+  {
+   double target_cx, target_cy;
+    if (edge_id == 0 || edge_id == 1) {
+        // top or bottom edge, keep x same as ball, move y by delta
+        target_cx = ai->st.ball->cx;
+        target_cy =  ai->st.ball->cy + (edge_id == 0 ? DELTA_TO_TARGET : -DELTA_TO_TARGET);
+    } else {
+        target_cx = ai->st.ball->cx + (edge_id == 2 ? DELTA_TO_TARGET : -DELTA_TO_TARGET);
+        target_cy = ai->st.ball->cy;
+    }
+     if (is_close_to_target(ai, target_cx, target_cy)) {
+          ai->st.state = ST_SOCCER_EDGE_DONE;
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+          break;
+        }
+
+      if (!is_facing_target(ai, *smx, *smy, target_cx, target_cy)) {
+        ai->st.state = ST_SOCCER_EDGE_ROTATE_TARGET;
+        break;
+      }
+      if (!is_close_to_target(ai, target_cx, target_cy)) {
+        move_to_blob(ai, *smx, *smy, target_cx, target_cy, 50);
+      } 
+    break;
+    }  
+  
+  case ST_SOCCER_EDGE_ROTATE_BALL:
+    {
+      double target_cx = ai->st.ball->cx;
+      double target_cy = ai->st.ball->cy;
+
+     if (is_facing_target(ai, *smx, *smy, target_cx, target_cy) && rotate_flag == -1) {
+        //fprintf(stderr, "Rotating to face target in PENALTY mode\n");
+        ai->st.state = ST_SOCCER_EDGE_MOVE_BALL; // facing target
+        break;
+      }
+
+      // non-blocking rotate to target
+      rotate_to_blob(ai, *smx, *smy, target_cx, target_cy);
+ 
+      if (rotate_flag == -2) {
+        ai->st.state = ST_SOCCER_EDGE_MOVE_BALL;
+        BT_motor_port_stop(LEFT_MOTOR, 0);
+        BT_motor_port_stop(RIGHT_MOTOR, 0);
+        rotate_flag = -1; // reset rotate flag
+        correct_motion_vector(smx, smy, target_angle);
+        target_angle = 0;
+      }
+    break;
+    }
+  
+  case ST_SOCCER_EDGE_MOVE_BALL:
+      {
+      if (is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
+          ai->st.state = ST_SOCCER_EDGE_KICK;
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+          break;
+        }
+        if (!is_facing_target(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy)) {
+          ai->st.state = ST_SOCCER_EDGE_ROTATE_BALL;
+          break;
+        }
+        if (!is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
+          move_to_blob(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy, 30);
+        }
+    break;
+      }
+
+  case ST_SOCCER_EDGE_KICK: 
+      {
+      double goal_x, goal_y;
+      double ball_x = ai->st.ball->cx;
+      double ball_y = ai->st.ball->cy;
+      compute_goal_center(ai, &goal_x, &goal_y);
+      if (edge_id == 2) {
+
+        bool goal_is_left = (goal_x == 0);
+        bool ball_on_top  = (ball_y < sy * 0.5);
+
+        if (goal_is_left) {
+            // Goal is on the same side (left), avoid kicking toward own goal
+            if (ball_on_top) {
+                rotate_right_kick(ai);   // top-left: push to right side
+            } else {
+                rotate_left_kick(ai);    // bottom-left: push slightly upward-left
+            }
+        } 
+        else {
+            if (ball_on_top) {
+                rotate_left_kick(ai);   // top-left: push to right side
+            } else {
+                rotate_right_kick(ai);    // bottom-left: push slightly upward-left
+            }
+        }
+    }
+          else if (edge_id == 3) { // ball near right edge
+             bool goal_is_right = (goal_x == sx);
+             bool ball_on_top  = (ball_y < sy * 0.5);
+             if (goal_is_right) {
+            // Goal is on the same side (left), avoid kicking toward own goal
+            if (ball_on_top) {
+                rotate_right_kick(ai);   // top-left: push to right side
+            } else {
+                rotate_left_kick(ai);    // bottom-left: push slightly upward-left
+            }
+          } 
+          else {
+              if (ball_on_top) {
+                  rotate_left_kick(ai);   // top-left: push to right side
+              } else {
+                  rotate_right_kick(ai);    // bottom-left: push slightly upward-left
+              }
+          }
+      }
+        else if (edge_id == 0) { // ball near top edge
+             bool goal_is_left = (goal_x == 0);
+             if (goal_is_left) {
+              rotate_left_kick(ai);   // top-left: push to right side
+            } else {
+              rotate_right_kick(ai);    // bottom-left: push slightly upward-left
+             }
+          }
+          else if (edge_id == 1) { // ball near bottom edge
+             bool goal_is_left = (goal_x == 0);
+             if (goal_is_left) {
+                rotate_right_kick(ai);   // top-left: push to right side
+             } else {
+                rotate_left_kick(ai);    // bottom-left: push slightly upward-left
+             }  
+        }
+      BT_motor_port_stop(LEFT_MOTOR, 0);
+      BT_motor_port_stop(RIGHT_MOTOR, 0);
+      // after kick, move to done state
+      ai->st.state = ST_SOCCER_EDGE_DONE;
+    break;
+      }
+
+  case ST_SOCCER_EDGE_DONE:
+      {
+    if (ai == NULL || ai->st.ball == NULL || ai->st.self == NULL || ai->st.opp == NULL) {
+        fprintf(stderr, "Ball lost after kick, rotating to search\n");
+        BT_motor_port_stop(LEFT_MOTOR, 0);
+        BT_motor_port_stop(RIGHT_MOTOR, 0);
+         usleep(500*1000); // wait for a second
+        break;
+      }else {
+        fprintf(stderr, "Ball found after kick, resuming chase\n");
+        ai->st.state = ST_SOCCER_EDGE_ROTATE_TARGET;
+      }
+      usleep(10*1000); // wait for a second
+      break; 
+      }
+  
+  default:
+    break;
+  }
+}
 
