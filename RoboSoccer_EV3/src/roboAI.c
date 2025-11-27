@@ -1199,8 +1199,8 @@ static void soccer_test_mode(struct RoboAI *ai, double *smx, double *smy) {
     return;
   }else {
     fprintf(stderr, "In SOCCER test mode, current state: %d\n", state);
-    ai->st.state = 30; // set to normal play mode
-     soccer_edge_play_mode(ai, smx, smy);
+    ai->st.state = 20; // set to normal play mode
+     soccer_normal_play_mode(ai, smx, smy);
   }
 
   // soccer_normal_play_mode(ai, smx, smy);
@@ -1256,6 +1256,13 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       double target_cx, target_cy;
       compute_target_position_soccer(ai, &target_cx, &target_cy);
 
+      if (is_close_to_target(ai, target_cx, target_cy)) {
+       ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
+       BT_motor_port_stop(LEFT_MOTOR, 0);
+       BT_motor_port_stop(RIGHT_MOTOR, 0);
+        move_flag = -2;
+       break;
+      }
       if (is_facing_target(ai, *stored_smx, *stored_smy, target_cx, target_cy) && rotate_flag == -1) {
         ai->st.state = ST_PENALTY_MOVE_TO_TARGET; // facing target
        // target_angle = 0;
@@ -1388,7 +1395,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
   
     case ST_PENALTY_KICK_BALL:
     {
-      rotate_right_kick(ai);
+      kick_ball(ai);
       ai->st.state = ST_PENALTY_DONE;
       break;
     }
@@ -2030,6 +2037,7 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx, double *stor
           ai->st.state = ST_SOCCER_ROTATE_TO_BALL;
           BT_motor_port_stop(LEFT_MOTOR, 0);
           BT_motor_port_stop(RIGHT_MOTOR, 0);
+          move_flag = -2;
           break;
         }
 
@@ -2548,9 +2556,9 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
 
 void rotate_left_kick(struct RoboAI *ai)
 {
- // BT_timed_motor_port_start(RIGHT_MOTOR, 100, 50, 400, 50);
-  //BT_timed_motor_port_start(LEFT_MOTOR, 100, 50, 400, 50);
-  // usleep(600*1000); // wait for 600 ms
+ BT_timed_motor_port_start(RIGHT_MOTOR, 70, 50, 400, 50);
+  BT_timed_motor_port_start(LEFT_MOTOR, 70, 50, 400, 50);
+  usleep(600*1000); // wait for 600 ms
   BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 500, 100);
   BT_timed_motor_port_start(LEFT_MOTOR, -100, 100, 500, 100);
   usleep(350*1000); // wait for 350 ms
@@ -2564,9 +2572,9 @@ void rotate_left_kick(struct RoboAI *ai)
 
 void rotate_right_kick(struct RoboAI *ai)
 {
- // BT_timed_motor_port_start(RIGHT_MOTOR, 100, 50, 400, 50);
-  //BT_timed_motor_port_start(LEFT_MOTOR, 100, 50, 400, 50);
-  // usleep(600*1000); // wait for 600 ms
+  BT_timed_motor_port_start(RIGHT_MOTOR, 100, 50, 600, 50);
+  BT_timed_motor_port_start(LEFT_MOTOR, 100, 50, 600, 50);
+  usleep(700*1000); // wait for 600 ms
   BT_timed_motor_port_start(RIGHT_MOTOR, -100, 100, 500, 100);
   BT_timed_motor_port_start(LEFT_MOTOR, 100, 100, 500, 100);
   usleep(350*1000); // wait for 350 ms
@@ -2635,12 +2643,6 @@ void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy)
   {
   case ST_SOCCER_EDGE_ROTATE_TARGET:
   {
-    if (is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
-          ai->st.state = ST_SOCCER_EDGE_KICK;
-          BT_motor_port_stop(LEFT_MOTOR, 0);
-          BT_motor_port_stop(RIGHT_MOTOR, 0);
-          break;
-        }
     double target_cx, target_cy;
     if (edge_id == 0 || edge_id == 1) {
         // top or bottom edge, keep x same as ball, move y by delta
