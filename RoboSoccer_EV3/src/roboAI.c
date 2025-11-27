@@ -56,10 +56,10 @@ extern int sy;
 int laggy=0;
 
 // global variable for rotating 
-// rotate_flag: -1 not rotating, 0 rotating right, 1 rotating left
-extern int rotate_flag = -1; // global variable to indicate rotation status
-extern int  rotating_angle = 0.0; // global variable to store the angle rotated from gryo
-extern double target_angle = 0.0; // global variable to store the target angle from angle difference computation
+// rotate_flag: -1 not rotating, 0 rotating right, 1 rotating leftint rotate_flag = -1; // global variable to indicate rotation statusint rotating_angle = 0; // global variable to store the angle rotated from gryodouble target_angle = 0.0; // global variable to store the target angle from angle difference computation
+int rotate_flag = -1; // global variable to indicate rotation status
+int rotating_angle = 0; // global variable to store the angle rotated from gry
+double target_angle = 0.0; // global variable to store the target angle from angle difference computation
 
 ////////////////////////////////////
 // Denosing data
@@ -1235,6 +1235,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
 
       if (is_facing_target(ai, *stored_smx, *stored_smy, target_cx, target_cy) && rotate_flag == -1) {
         ai->st.state = ST_PENALTY_MOVE_TO_TARGET; // facing target
+       // target_angle = 0;
         break;
       }
 
@@ -1297,8 +1298,11 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
     double ball_cy = ai->st.ball->cy;
     // double angle_error = compute_angle_error_to_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy);
        if (is_facing_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy) && rotate_flag == -1) {
+       if (is_facing_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy) && rotate_flag == -1) {
         //fprintf(stderr, "Rotating to face target in PENALTY mode\n");
+       // rotate_flag = -1;
         ai->st.state = ST_PENALTY_MOVE_TO_BALL; // facing target
+       // target_angle = 0;
         break;
       }
 
@@ -1472,51 +1476,106 @@ void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, 
   //如果没有在转 -> init gryo and init global variable rotating angle!!
   // and compute target angle here! 
   const int ROTATE_SPEED = 30; // speed for rotation, to be tuned
+  double angle_delta = 0.0;
+  static double prev_ang_err = 0.0;
+  static double prev_5_err_ang[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+  static double prev_speed = 0.0;
+  int g_rate = 0;
+
   if (rotate_flag == -1){
     fprintf(stderr, "Starting rotation to target blob at (%.2f, %.2f)\n", target_x, target_y);
     target_angle = compute_angle_error_to_target(ai, smx, smy, target_x, target_y);
     // init gyro
-    int g_angle = 0, g_rate = 0;
+    int g_angle = 0;
     // init gryo to 0
     BT_read_gyro(GYRO_PORT, 1, &g_angle, &g_rate);
-    rotating_angle =g_angle;
-
-    if (target_angle < 0){
-      rotate_flag = 1; // left
-      // turn left
-      BT_drive(LEFT_MOTOR, RIGHT_MOTOR, -ROTATE_SPEED, ROTATE_SPEED);
-    } else {
-      rotate_flag = 0; // right
-      // turn right
-      BT_drive(LEFT_MOTOR, RIGHT_MOTOR, ROTATE_SPEED, -ROTATE_SPEED);
+    rotating_angle = g_angle;
+    for (int i = 0; i < 5; i++) {
+      prev_5_err_ang[i] = angle_delta;
     }
+    prev_ang_err = angle_delta;
   }else{
     // this is during rotation
     // read gyro as current rotated angle
-    int cur_angle = 0, cur_rate = 0;
-    BT_read_gyro(GYRO_PORT, 0, &cur_angle, &cur_rate);
+    int cur_angle = 0;
+    BT_read_gyro(GYRO_PORT, 0, &cur_angle, &g_rate);
     rotating_angle = cur_angle; 
-    double angle_delta = target_angle - rotating_angle;
+  }
 
-    while (angle_delta > 180.0) angle_delta -= 360.0;
-    while (angle_delta < -180.0) angle_delta += 360.0;
+  angle_delta = target_angle - rotating_angle;
 
-    bool rotate_limit =  fabs(rotating_angle) > 200.0;
-    bool left_done = (rotate_flag == 1) && (angle_delta >= -5.0);
-    bool right_done = (rotate_flag == 0) && (angle_delta <= 5.0);
+  while (angle_delta > 180.0) angle_delta -= 360.0;
+  while (angle_delta < -180.0) angle_delta += 360.0;
 
-    if (left_done || right_done || rotate_limit){ // within 5 degrees
-      // stop 
-      fprintf(stderr, "Rotation to target blob completed. Target angle: %.2f, Rotated angle: %.2f\n", target_angle, rotating_angle);
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
-      // reset and correct
-      rotate_flag = -2; // reset flag
-      rotating_angle = 0.0;
+  bool rotate_limit =  fabs(rotating_angle) > 200.0;
+  bool left_done = (target_angle < 0) && (angle_delta >= -5.0);
+  bool right_done = (target_angle > 0) && (angle_delta <= 5.0);
+
+  // finished rotation
+  if (left_done || right_done || rotate_limit){ // within 5 degrees
+    // stop 
+    fprintf(stderr, "Rotation to target blob completed. Target angle: %.2f, Rotated angle: %d\n", target_angle, rotating_angle);
+    BT_motor_port_stop(LEFT_MOTOR, 0);
+    BT_motor_port_stop(RIGHT_MOTOR, 0);
+    // reset and correct
+    rotate_flag = -2; // reset flag
+    rotating_angle = 0;
+    prev_ang_err = 0.0;
+    for (int i = 0; i < 5; i++) {
+      prev_5_err_ang[i] = 0.0;
+    }
+    prev_speed = 0.0;
   //    correct_motion_vector(&ai->st.smx, &ai->st.smy, target_angle);
    //   target_angle = 0.0;
-    }
+    return;
   }
+
+  // D
+  double ang_diff = angle_delta - prev_ang_err;
+  // ang_diff = g_rate; 
+
+  // I
+  static int err_index = 0;
+  prev_5_err_ang[err_index] = angle_delta;
+  err_index = (err_index + 1) % 5;
+  double ang_intg = 0.0;
+  for (int i = 0; i < 5; i++) {
+      ang_intg += prev_5_err_ang[i];
+  }
+
+  // turn PID control for angle
+  const double Kp_ang = 0.5; // 要调参
+  const double Kd_ang = 2.5;// 要调参
+  const double Ki_ang = 0.1;// 要
+
+  double up_ang = Kp_ang * angle_delta;
+  double ud_ang = Kd_ang * ang_diff;
+  double ui_ang = Ki_ang * ang_intg;
+
+  double speed = up_ang + ud_ang + ui_ang; // pid
+  
+  // turn limits
+  if (speed > 100) speed = 100;
+  if (speed < -100) speed = -100;
+  if (speed < 10 && speed > 0) speed = 10;
+  if (speed > -10 && speed < 0) speed = -10;
+
+  // prevent sudden speed change
+  if (speed > prev_speed + 10){
+    speed = prev_speed + 10;
+  } else if (speed < prev_speed - 10){
+    speed = prev_speed - 10;
+  }
+
+  fprintf(stderr, "angle_delta: %.2f, prev_ang_err: %.2f, up_ang: %.2f, ud_ang: %.2f, ui_ang: %.2f, speed: %.2f\n", angle_delta, prev_ang_err, up_ang, ud_ang, ui_ang, speed);
+
+  prev_speed = speed;
+  prev_ang_err = angle_delta;
+
+  
+  rotate_flag = 0; 
+  BT_drive(LEFT_MOTOR, RIGHT_MOTOR, speed, -speed);
+
 }
 
 void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, double target_y, double target_dist) {
@@ -2419,9 +2478,8 @@ void rotate_right_kick(struct RoboAI *ai)
   BT_timed_motor_port_start(KICK_MOTOR, 100, 0, 100, 100);
    usleep(600*1000); // wait for 600 ms
 
-  BT_timed_motor_port_start(RIGHT_MOTOR, -80, 100, 200, 100);
+  BT_timed_motor_port_start(KICK_MOTOR, -80, 100, 200, 100);
   usleep(300*1000); // wait for 250 ms
-
 
 }
 
