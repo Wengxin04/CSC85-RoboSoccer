@@ -103,6 +103,7 @@ void correct_direction(struct BlobHistory *h) {
 
     double cos_angle = dot / (mag0 * mag1);
     if (cos_angle < 0) { // angle > 90 deg
+      fprintf(stderr, "correcting dir? %f %f\n", h->dx[0], h->dy[0]);
         h->dx[0] *= -1;
         h->dy[0] *= -1;
     }
@@ -182,6 +183,8 @@ int denoise_exp(struct BlobHistory *h,
     const double alpha = 0.5; // smoothing factor
     if (h->missed_frames > MAX_MISSED_FRAMES || h->count == 0)
         return -1;  // blob lost
+    if (cx == NULL || cy == NULL || vx == NULL || vy == NULL || dx == NULL || dy == NULL || mx == NULL || my == NULL)
+        return -1;  // invalid pointers
 
     // Start with oldest valid sample
     int start = h->count - 1;
@@ -207,10 +210,10 @@ int denoise_exp(struct BlobHistory *h,
     }
 
 
-    printf("Noised: cx=%.2f, cy=%.2f, vx=%.2f, vy=%.2f, dx=%.2f, dy=%.2f\n",
-       *cx, *cy, *vx, *vy, *dx, *dy);
-    printf("Denoised: cx=%.2f, cy=%.2f, vx=%.2f, vy=%.2f, dx=%.2f, dy=%.2f\n",
-           scx, scy, svx, svy, sdx, sdy);
+    // printf("Noised: cx=%.2f, cy=%.2f, vx=%.2f, vy=%.2f, dx=%.2f, dy=%.2f\n",
+    //    *cx, *cy, *vx, *vy, *dx, *dy);
+    // printf("Denoised: cx=%.2f, cy=%.2f, vx=%.2f, vy=%.2f, dx=%.2f, dy=%.2f\n",
+    //        scx, scy, svx, svy, sdx, sdy);
 
     *cx = scx; *cy = scy;
     *vx = svx; *vy = svy;
@@ -237,7 +240,7 @@ static bool check_anything_lost(struct RoboAI *ai);
 
 // Tuning knobs for penalty routine
 enum {
-    FACE_THRESH_DEG   = 10,    // tweak
+    FACE_THRESH_DEG   = 20,    // tweak
     ALIGN_THRESH_DEG  = 7,   // tweak
     TARGET_BALL_DIST  = 150,   // pixels; tweak to your scale
     TARGET_TARGET_DIST= 80,   // pixels; tweak to your scale
@@ -1217,16 +1220,17 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
   struct blob *aiBlob[] = { ai->st.ball, ai->st.self, ai->st.opp };
   struct BlobHistory *aiBlobHist[] = { &trackHist.ball, &trackHist.self, &trackHist.opp };
 
+  if (check_anything_lost(ai) == 0) {
+    for (int i = 0; i < 3; i++) {
+      struct blob* b = aiBlob[i];
+      struct BlobHistory* hist = aiBlobHist[i];
 
-  for (int i = 0; i < 3; i++) {
-    struct blob* b = aiBlob[i];
-    struct BlobHistory* hist = aiBlobHist[i];
-
-    update_blob_history(hist, b);
-    int valid = denoise_exp(hist, b);
-    if (valid < 0) {
-      fprintf(stderr, "Lost track of a blob, back to 101\n");
-      ai->st.state = 101;
+      update_blob_history(hist, b);
+      int valid = denoise_exp(hist, &b->cx, &b->cy, &b->vx, &b->vy, &b->dx, &b->dy, &b->mx, &b->my);
+      if (valid < 0) {
+        fprintf(stderr, "Lost track of a blob, back to 101\n");
+        ai->st.state = 101;
+      }
     }
   }
 
@@ -1244,6 +1248,10 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
       // ai->st.state = ST_PENALTY_DONE;
       // break;
     {
+      
+
+
+
       double target_cx, target_cy;
       compute_target_position_soccer(ai, &target_cx, &target_cy);
 
@@ -1272,14 +1280,17 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
     {
       // calculate target position
       double tgt_cx, tgt_cy;
-      compute_target_position_soccer(ai, &tgt_cx, &tgt_cy);
+      compute_target_position_soccer(ai, &tgt_cx, &tgt_cy); 
+
       if (is_close_to_target(ai, tgt_cx, tgt_cy)) {
        ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
+       // ai->st.state = ST_PENALTY_DONE;
         double de = 0, dd = 0;
       double d = compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd, tgt_cx, tgt_cy);
         fprintf(stderr, "change to Rotating to ball in PENALTY mode with distance difference: %.2f\n", d);
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
+        move_flag = -2;
         break;
       }
 
@@ -1289,7 +1300,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
         BT_motor_port_stop(RIGHT_MOTOR, 0);
         break;
       } 
-      else if (!is_close_to_target(ai, tgt_cx, tgt_cy)) {
+      if (!is_close_to_target(ai, tgt_cx, tgt_cy)) {
        fprintf(stderr, "Moving to target in PENALTY mode\n");
         move_to_blob(ai, *stored_smx, *stored_smy, tgt_cx, tgt_cy, TARGET_TARGET_DIST);
        // usleep(100*1000); 
@@ -1301,6 +1312,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
         fprintf(stderr, "change to Rotating to ball in PENALTY mode with distance difference: %.2f\n", d);
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
+        move_flag = -1; // reset rotate flag
       }
       break;
     }
@@ -1348,13 +1360,13 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
         break;
       }
 
-      if (!is_facing_target(ai, *stored_smx, *stored_smy, b_cx, b_cy)) {
-        ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
-        BT_motor_port_stop(LEFT_MOTOR, 0);
-        BT_motor_port_stop(RIGHT_MOTOR, 0);
-        break;
-      } 
-      else if (!is_close_to_ball(ai, b_cx, b_cy)) {
+      // if (!is_facing_target(ai, *stored_smx, *stored_smy, b_cx, b_cy)) {
+      //   ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
+      //   BT_motor_port_stop(LEFT_MOTOR, 0);
+      //   BT_motor_port_stop(RIGHT_MOTOR, 0);
+      //   break;
+      // } 
+      if (!is_close_to_ball(ai, b_cx, b_cy)) {
        // fprintf(stderr, "Moving to ball in PENALTY mode\n");
         move_to_blob(ai, *stored_smx, *stored_smy, b_cx, b_cy, TARGET_BALL_DIST);
         //*stored_smx = ai->st.smx;
@@ -1364,10 +1376,11 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
        //  usleep(100*1000); // avoid smx/smy being zero/错误计算
       }
       else if (is_close_to_ball(ai, b_cx, b_cy)) {
-        ai->st.state = ST_PENALTY_KICK_BALL;
+        ai->st.state = ST_PENALTY_DONE;
        // fprintf(stderr, "change to Aligning to goal in PENALTY mode with distance difference: %.2f\n", compute_distance_error(ai));
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
+        move_flag = -2; // reset move flag
       }
       break;
     }
@@ -1444,6 +1457,7 @@ static void chase_mode(struct RoboAI *ai, struct blob *blobs) {
        // fprintf(stderr, "change to Kicking ball in CHASE mode with distance difference: %.2f\n", compute_distance_error(ai));
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
+        move_flag = -2; // reset move flag
       }
       break;
 
@@ -1624,7 +1638,7 @@ void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, do
 
   ang_err = fmod(ang_err + 180.0, 360.0) - 180.0; // wrap to [-180, 180]
 
-  if (move_flag == -1){
+  if (move_flag == -2){
     fprintf(stderr, "Starting move to blob at (%.2f, %.2f) with target distance %.2f\n", target_x, target_y, target_dist);
     move_flag = 0; // moving
     for (int i = 0; i < 5; i++) {
@@ -1655,8 +1669,8 @@ void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, do
   }
 
   // turn PID control for angle
-  const double Kp_ang = 10.0; // 要调参
-  const double Kd_ang = 5.5;// 要调参
+  const double Kp_ang = 1.0; // 要调参
+  const double Kd_ang = 2.5;// 要调参
   const double Ki_ang = 0.1;// 要
 
   double up_ang = Kp_ang * ang_err;
@@ -1715,7 +1729,7 @@ void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, do
   // turn = 0.0; // 先不转了，直接走直线接近球
   if (forward_speed > 100) forward_speed = 100;
 
-  int left  = (forward_speed + turn) * 1.1; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
+  int left  = (forward_speed + turn); // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
   int right = (forward_speed - turn); // wallahi 调整
 
   // slow rate to prevent sudden changes
@@ -2054,6 +2068,7 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx, double *stor
           ai->st.state = ST_SOCCER_ROTATE_TO_BALL;
           BT_motor_port_stop(LEFT_MOTOR, 0);
           BT_motor_port_stop(RIGHT_MOTOR, 0);
+          move_flag = -2;
           break;
         }
         if (!is_facing_target(ai, *stored_smx, *stored_smy, target_cx, target_cy)) {
@@ -2063,7 +2078,7 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx, double *stor
         }
         if (!is_close_to_target(ai, target_cx, target_cy)) {
           fprintf(stderr, "Moving to target in SOCCER mode\n");
-          move_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy, TARGET_BALL_DIST);
+          move_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy, TARGET_TARGET_DIST);
         }
       break;    
       }
@@ -2113,7 +2128,7 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx, double *stor
 
         if (is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
           fprintf(stderr, "Reached ball in SOCCER mode, kicking\n");
-          ai->st.state = ST_SOCCER_NORMAL_PLAY_DONE;
+          ai->st.state = ST_SOCCER_KICK_BALL;
           BT_motor_port_stop(LEFT_MOTOR, 0);
           BT_motor_port_stop(RIGHT_MOTOR, 0);
           break;
@@ -2364,6 +2379,7 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy)
           ai->st.state = ST_SOCCER_DEFEND_DONE;
           BT_motor_port_stop(LEFT_MOTOR, 0);
           BT_motor_port_stop(RIGHT_MOTOR, 0);
+          move_flag = -2;
           break;
         }
 
