@@ -1298,7 +1298,6 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
     double ball_cy = ai->st.ball->cy;
     // double angle_error = compute_angle_error_to_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy);
        if (is_facing_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy) && rotate_flag == -1) {
-       if (is_facing_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy) && rotate_flag == -1) {
         //fprintf(stderr, "Rotating to face target in PENALTY mode\n");
        // rotate_flag = -1;
         ai->st.state = ST_PENALTY_MOVE_TO_BALL; // facing target
@@ -1557,8 +1556,8 @@ void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, 
   // turn limits
   if (speed > 100) speed = 100;
   if (speed < -100) speed = -100;
-  if (speed < 10 && speed > 0) speed = 10;
-  if (speed > -10 && speed < 0) speed = -10;
+  if (speed < 25 && speed > 0) speed = 25;
+  if (speed > -25 && speed < 0) speed = -25;
 
   // prevent sudden speed change
   if (speed > prev_speed + 10){
@@ -1679,10 +1678,10 @@ void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, do
 
   // slow rate to prevent sudden changes
   static int prev_left, prev_right;
-  if (left < prev_left - 20) left = prev_left - 20;
-  if (left > prev_left + 20) left = prev_left + 20;
-  if (right < prev_right - 20) right = prev_right - 20;
-  if (right > prev_right + 20) right = prev_right + 20;
+  if (left < prev_left - 15) left = prev_left - 15;
+  if (left > prev_left + 15) left = prev_left + 15;
+  if (right < prev_right - 15) right = prev_right - 15;
+  if (right > prev_right + 15) right = prev_right + 15;
   prev_left = left;
   prev_right = right;
 
@@ -2469,12 +2468,12 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
 
 void rotate_right_kick(struct RoboAI *ai)
 {
-  BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 800, 100);
-  BT_timed_motor_port_start(LEFT_MOTOR, 100, 100, 800, 100);
-    usleep(1000*1000); // wait for 600 ms
-   BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 500, 100);
-   BT_timed_motor_port_start(LEFT_MOTOR, -100, 100, 500, 100);
-   usleep(350*1000); // wait for 350 ms
+  BT_timed_motor_port_start(RIGHT_MOTOR, 100, 50, 400, 50);
+  BT_timed_motor_port_start(LEFT_MOTOR, 100, 50, 400, 50);
+  usleep(600*1000); // wait for 600 ms
+  BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 500, 100);
+  BT_timed_motor_port_start(LEFT_MOTOR, -100, 100, 500, 100);
+  usleep(350*1000); // wait for 350 ms
   BT_timed_motor_port_start(KICK_MOTOR, 100, 0, 100, 100);
    usleep(600*1000); // wait for 600 ms
 
