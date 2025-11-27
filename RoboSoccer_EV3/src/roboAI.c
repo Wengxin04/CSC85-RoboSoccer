@@ -973,6 +973,10 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
    fprintf(stderr,"Self-ID complete. Current position: (%f,%f), current heading: [%f, %f], blob direction=[%f, %f], AI state=%d\n",ai->st.self->cx,ai->st.self->cy,ai->st.smx,ai->st.smy,ai->st.sdx,ai->st.sdy,ai->st.state);
    stored_smx = ai->st.smx;
    stored_smy = ai->st.smy;
+
+   rotate_flag = -1;
+   target_angle = 0;
+   rotating_angle = 0;
    
    if (ai->st.self!=NULL)
    {
@@ -1357,7 +1361,7 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
   
     case ST_PENALTY_KICK_BALL:
     {
-      kick_ball(ai);
+      rotate_right_kick(ai);
       ai->st.state = ST_PENALTY_DONE;
       break;
     }
@@ -2662,9 +2666,14 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
 
 void rotate_right_kick(struct RoboAI *ai)
 {
-   BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 200, 100);
-   BT_timed_motor_port_start(LEFT_MOTOR, -100, 100, 200, 100);
-   usleep(400*1000); // wait for 300 ms
+  BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 800, 100);
+  BT_timed_motor_port_start(LEFT_MOTOR, 100, 100, 800, 100);
+    usleep(1000*1000); // wait for 600 ms
+   BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 500, 100);
+   BT_timed_motor_port_start(LEFT_MOTOR, -100, 100, 500, 100);
+   usleep(350*1000); // wait for 350 ms
+  BT_timed_motor_port_start(KICK_MOTOR, 100, 0, 100, 100);
+   usleep(600*1000); // wait for 600 ms
 }
 
 
