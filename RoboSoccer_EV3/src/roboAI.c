@@ -2125,9 +2125,9 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx, double *stor
   int state = ai->st.state;
   static double prev_rotate_deg = 0.0;
 
-   ai->st.state = ST_SOCCER_ROTATE_TO_TARGET; // default next state
+  // ai->st.state = ST_SOCCER_ROTATE_TO_TARGET; // default next state
 
-  int behavior = check_soccer_state_behavior(ai, smx, smy);
+  int behavior = check_soccer_state_behavior(ai, stored_smx, stored_smy);
   if (behavior == NORMAL_ATTACK_BEHAVIOR || behavior == BEHAVIOR_NOT_CHANGE) {
     // do nothing, continue normal play
   } else if (behavior == ESCAPE_BEHAVIOR) {
@@ -2163,7 +2163,7 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx, double *stor
         target_angle = 0;
         break;
       }
-      fprintf(stderr, "[state 20]Rotating to face target in SOCCER mode\n");
+      fprintf(stderr, "[state 20]Rotating to face target in SOCCER mode and check rotate-flag = %d\n", rotate_flag);
       // non-blocking rotate to target
       rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
  
@@ -2308,7 +2308,7 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx, double *stor
 
 double compute_opp_angle_diff_to_target(struct RoboAI *ai, double target_x, double target_y)
 {
-    if (!ai || !ai->st.opp) return;
+    if (!ai || !ai->st.opp) return 0.0;
 
     // position deltas
     double dx = target_x - ai->st.opp->cx;
@@ -2473,14 +2473,14 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy)
 
     case ST_SOCCER_DEFEND_ROTATE:
     {
-      if (is_facing_target(ai, *stored_smx, *stored_smy, target_cx, target_cy)) {
+      if (is_facing_target(ai, *smx, *smy, target_cx, target_cy)) {
         rotate_flag = -1;
         ai->st.state = ST_SOCCER_DEFEND_MOVE; // facing target
         target_angle = 0;
         break;
       }
       // non-blocking rotate to target
-      rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
+      rotate_to_blob(ai, *smx, *smy, target_cx, target_cy);
  
       if (rotate_flag == -2) {
         fprintf(stderr, "Facing target achieved in SOCCER mode\n");
@@ -2488,7 +2488,7 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy)
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
         rotate_flag = -1; // reset rotate flag
-        correct_motion_vector(stored_smx, stored_smy, target_angle);
+        correct_motion_vector(smx, smy, target_angle);
         target_angle = 0;
       }
        break;
@@ -2610,7 +2610,7 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
       // }
       double target_x, target_y;
       compute_escape_rotate_target(ai, &target_x, &target_y);
-       if (is_facing_target(ai, *stored_smx, *stored_smy, target_x, target_y)) {
+       if (is_facing_target(ai, *smx, *smy, target_x, target_y)) {
         rotate_flag = -1;
         ai->st.state = ST_SOCCER_ESCAPE_MOVE; // facing target
         target_angle = 0;
@@ -2618,7 +2618,7 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
       }
       fprintf(stderr, "[state 20]Rotating to face target in SOCCER mode\n");
       // non-blocking rotate to target
-      rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
+      rotate_to_blob(ai, *smx, *smy, target_x, target_y);
  
       if (rotate_flag == -2) {
         fprintf(stderr, "Facing target achieved in SOCCER mode\n");
@@ -2626,7 +2626,7 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
         BT_motor_port_stop(LEFT_MOTOR, 0);
         BT_motor_port_stop(RIGHT_MOTOR, 0);
         rotate_flag = -1; // reset rotate flag
-        correct_motion_vector(stored_smx, stored_smy, target_angle);
+        correct_motion_vector(smx, smy, target_angle);
         target_angle = 0;
       }
        break;
