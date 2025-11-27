@@ -60,26 +60,13 @@ int laggy=0;
 int rotate_flag = -1; // global variable to indicate rotation status
 int rotating_angle = 0; // global variable to store the angle rotated from gry
 double target_angle = 0.0; // global variable to store the target angle from angle difference computation
+int move_flag = -2; // global variable to indicate move status, start at -2 (not moving)
 
 ////////////////////////////////////
 // Denosing data
 ////////////////////////////////////
 #define HISTORY_LEN 5  // Number of frames to remember
 #define MAX_MISSED_FRAMES 5 // Number of consecutive missed frames before considering blob lost
-
-double find_angle_err(double new_ang) {
-    static double ema = 0.0;
-    static int initialized = 0;
-
-    if (!initialized) {
-        ema = new_ang;
-        initialized = 1;
-    } else {
-        const double alpha = 0.7; // smoothing factor
-        ema = alpha * new_ang + (1.0 - alpha) * ema;
-    }
-    return ema;
-}
 
 struct BlobHistory {
     double cx[HISTORY_LEN];   // Center x history
@@ -105,9 +92,25 @@ struct TrackingHistory {
 
 struct TrackingHistory trackHist = {0};
 
+// corrects direction vector 
+void correct_direction(struct BlobHistory *h) {
+    if (h->count < 2) return; // need at least 2 samples
+
+    double dot = h->dx[0]*h->dx[1] + h->dy[0]*h->dy[1];
+    double mag0 = sqrt(h->dx[0]*h->dx[0] + h->dy[0]*h->dy[0]);
+    double mag1 = sqrt(h->dx[1]*h->dx[1] + h->dy[1]*h->dy[1]);
+    if (mag0 == 0 || mag1 == 0) return;
+
+    double cos_angle = dot / (mag0 * mag1);
+    if (cos_angle < 0) { // angle > 90 deg
+        h->dx[0] *= -1;
+        h->dy[0] *= -1;
+    }
+}
+
 void update_blob_history(struct BlobHistory *h, struct blob *b) {
 
-    if (b != NULL) {
+    if (b != NULL) {  // ball detected 
         // Reset missed-frame counter
         h->missed_frames = 0;
         h->is_active = 1;
@@ -127,15 +130,27 @@ void update_blob_history(struct BlobHistory *h, struct blob *b) {
         // Store new sample
         h->cx[0] = b->cx;
         h->cy[0] = b->cy;
+
+        if (b->vx == 0.0 || b->vy == 0.0) {
+          // if 0.0, make it so that the entire history is now invalid
+          for (int i = h->count - 1; i >= 0; --i) {
+               h->mx[i] = 0.0;
+               h->my[i] = 0.0;
+          }
+        } else {
+          h->mx[0] = b->mx;
+          h->my[0] = b->my;
+        }
+
         h->vx[0] = b->vx;
         h->vy[0] = b->vy;
-        h->mx[0] = b->mx;
-        h->my[0] = b->my;
         h->dx[0] = b->dx;
         h->dy[0] = b->dy;
 
         if (h->count < HISTORY_LEN)
             h->count++;
+        
+        correct_direction(h);
     }
     else {
         // Blob missing this frame
@@ -143,38 +158,54 @@ void update_blob_history(struct BlobHistory *h, struct blob *b) {
         if (h->missed_frames > MAX_MISSED_FRAMES) {
             h->is_active = 0;  // officially lost
             h->count = 0;      // optionally clear history
+            for (int i = 0; i < HISTORY_LEN; ++i) {
+                h->cx[i] = 0.0;
+                h->cy[i] = 0.0;
+                h->vx[i] = 0.0;
+                h->vy[i] = 0.0;
+                h->mx[i] = 0.0;
+                h->my[i] = 0.0;
+                h->dx[i] = 0.0;
+                h->dy[i] = 0.0;
+            }
         }
     }
 }
 
 // Exponential smoothing denoiser
-int denoise_exp(struct BlobHistory *h, double alpha,
+int denoise_exp(struct BlobHistory *h,
                  double *cx, double *cy,
                  double *vx, double *vy,
-                 double *dx, double *dy) {
-    if (h->missed_frames > MAX_MISSED_FRAMES) {
-        // Blob officially lost
-        return 0;
+                 double *dx, double *dy, 
+                 double *mx, double *my) {
+    
+    const double alpha = 0.5; // smoothing factor
+    if (h->missed_frames > MAX_MISSED_FRAMES || h->count == 0)
+        return -1;  // blob lost
+
+    // Start with oldest valid sample
+    int start = h->count - 1;
+    double scx = h->cx[start];
+    double scy = h->cy[start];
+    double svx = h->vx[start];
+    double svy = h->vy[start];
+    double sdx = h->dx[start];
+    double sdy = h->dy[start];
+    double smx = h->mx[start];
+    double smy = h->my[start];
+
+    // Iteratively apply EWMA from older to newer
+    for (int i = start - 1; i >= 0; --i) {
+        scx = alpha * h->cx[i] + (1 - alpha) * scx;
+        scy = alpha * h->cy[i] + (1 - alpha) * scy;
+        svx = alpha * h->vx[i] + (1 - alpha) * svx;
+        svy = alpha * h->vy[i] + (1 - alpha) * svy;
+        sdx = alpha * h->dx[i] + (1 - alpha) * sdx;
+        sdy = alpha * h->dy[i] + (1 - alpha) * sdy;
+        smx = alpha * h->mx[i] + (1 - alpha) * smx;
+        smy = alpha * h->my[i] + (1 - alpha) * smy;
     }
 
-    double scx = 0, scy = 0, svx = 0, svy = 0, sdx = 0, sdy = 0;
-    int n = 0;
-
-    for (int i = h->count - 1; i >= 0; --i) {
-        double w = pow(alpha, n); // older frames get exponentially less weight
-        scx = w * h->cx[i] + (1 - w) * scx;
-        scy = w * h->cy[i] + (1 - w) * scy;
-
-        // Only smooth vx, vy if valid_motion was true when added
-        if (h->vx[i] != 0 || h->vy[i] != 0) {
-            svx = w * h->vx[i] + (1 - w) * svx;
-            svy = w * h->vy[i] + (1 - w) * svy;
-        }
-
-        sdx = w * h->dx[i] + (1 - w) * sdx;
-        sdy = w * h->dy[i] + (1 - w) * sdy;
-        n++;
-    }
 
     printf("Noised: cx=%.2f, cy=%.2f, vx=%.2f, vy=%.2f, dx=%.2f, dy=%.2f\n",
        *cx, *cy, *vx, *vy, *dx, *dy);
@@ -184,9 +215,12 @@ int denoise_exp(struct BlobHistory *h, double alpha,
     *cx = scx; *cy = scy;
     *vx = svx; *vy = svy;
     *dx = sdx; *dy = sdy;
+    *mx = smx; *my = smy;
 
     return 1; // valid smoothed output
 }
+
+
 ////////////////////////////////////
 // End of denoising data
 ////////////////////////////////////
@@ -1179,39 +1213,22 @@ static void penalty_mode(struct RoboAI *ai, double* stored_smx, double* stored_s
   fprintf(stderr, "In PENALTY mode, current state: %d\n", ai->st.state);
   int state = ai->st.state;
 
-  // // denoise check for all blobs
-  // struct blob *aiBlob[] = { ai->st.ball, ai->st.self, ai->st.opp };
-  // struct BlobHistory *aiBlobHist[] = { &trackHist.ball, &trackHist.self, &trackHist.opp };
+  // denoise check for all blobs
+  struct blob *aiBlob[] = { ai->st.ball, ai->st.self, ai->st.opp };
+  struct BlobHistory *aiBlobHist[] = { &trackHist.ball, &trackHist.self, &trackHist.opp };
 
 
-  // for (int i = 0; i < 3; i++) {
-  //   struct blob* b = aiBlob[i];
-  //   struct BlobHistory* hist = aiBlobHist[i];
-  //   int blob_detected = (b != NULL);
+  for (int i = 0; i < 3; i++) {
+    struct blob* b = aiBlob[i];
+    struct BlobHistory* hist = aiBlobHist[i];
 
-  //   update_blob_history(hist, blob_detected, b->cx, b->cy, b->vx, b->vy, b->mx, b->my, b->dx, b->dy);
-  //   int valid = denoise_exp(hist, 0.3, &b->cx, &b->cy, &b->vx, &b->vy, &b->dx, &b->dy);
-  //   if (!valid) {
-  //     fprintf(stderr, "Lost track of a blob, back to 101\n");
-  //     ai->st.state = 101;
-  //   }
-  // }// denoise check for all blobs
-  // struct blob *aiBlob[] = { ai->st.ball, ai->st.self, ai->st.opp };
-  // struct BlobHistory *aiBlobHist[] = { &trackHist.ball, &trackHist.self, &trackHist.opp };
-
-
-  // for (int i = 0; i < 3; i++) {
-  //   struct blob* b = aiBlob[i];
-  //   struct BlobHistory* hist = aiBlobHist[i];
-  //   int blob_detected = (b != NULL);
-
-  //   update_blob_history(hist, blob_detected, b->cx, b->cy, b->vx, b->vy, b->mx, b->my, b->dx, b->dy);
-  //   int valid = denoise_exp(hist, 0.3, &b->cx, &b->cy, &b->vx, &b->vy, &b->dx, &b->dy);
-  //   if (!valid) {
-  //     fprintf(stderr, "Lost track of a blob, back to 101\n");
-  //     ai->st.state = 101;
-  //   }
-  // }
+    update_blob_history(hist, b);
+    int valid = denoise_exp(hist, b);
+    if (valid < 0) {
+      fprintf(stderr, "Lost track of a blob, back to 101\n");
+      ai->st.state = 101;
+    }
+  }
 
 
   // TODOO: add more transitions (lost track, reset, still moving etc)
@@ -1575,14 +1592,48 @@ void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, 
 }
 
 void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, double target_y, double target_dist) {
-        if (!ai || !ai->st.self) return;
+  if (!ai || !ai->st.self) return;
+
+  // P for distance
+  double dist_err = 0.0, d_dist = 0.0;
+  double dist = compute_distance_error(ai, target_dist, &dist_err, &d_dist, target_x, target_y);
+
+  static double prev_ang_err = 0.0;
+  static double prev_5_err_ang[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+  static double prev_dist_err = 0.0;
+  static double prev_5_err_dist[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+
+  // stop condition
+  // 可以之后增加连续停止的判定，防止误停？
+  if (dist < target_dist + 5.0) {
+      move_flag = -2; // reached target
+      fprintf(stderr, "Reached target distance to blob. Current distance: %.2f, Target distance: %.2f\n", dist, target_dist);
+      BT_all_stop(0);
+      prev_ang_err = 0.0;
+      for (int i = 0; i < 5; i++) {
+        prev_5_err_ang[i] = 0.0;
+        prev_5_err_dist[i] = 0.0;
+      }
+      prev_dist_err = 0.0;
+      return;
+  }
 
   // angle error to ball as P term
   double ang_err = compute_angle_error_to_target(ai, smx, smy, target_x, target_y);
-  ang_err = find_angle_err(ang_err);  // noise handling
   if (isnan(ang_err)) return;
 
   ang_err = fmod(ang_err + 180.0, 360.0) - 180.0; // wrap to [-180, 180]
+
+  if (move_flag == -1){
+    fprintf(stderr, "Starting move to blob at (%.2f, %.2f) with target distance %.2f\n", target_x, target_y, target_dist);
+    move_flag = 0; // moving
+    for (int i = 0; i < 5; i++) {
+      prev_5_err_ang[i] = ang_err;
+      prev_5_err_dist[i] = dist_err;
+    }
+    prev_ang_err = ang_err;
+    prev_dist_err = dist_err;
+  }
 
   // rate of angle change from gyro as D term
   int g_angle = 0, g_rate = 0;
@@ -1591,12 +1642,10 @@ void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, do
 
   // use static variable to store previous angle error for D term image自身的d项，有需要再加吧
   // D
-  static double prev_ang_err = 0.0;
   double ang_diff = ang_err - prev_ang_err;
   // ang_diff = g_rate; 
 
   // I 
-  static double prev_5_err_ang[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
   static int err_index = 0;
   prev_5_err_ang[err_index] = ang_err;
   err_index = (err_index + 1) % 5;
@@ -1626,16 +1675,12 @@ void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, do
 
   // distance to ball
   // double target_dist = TARGET_BALL_DIST;  // target distance to ball // 要调参
-  // P 
-  double dist_err = 0.0, d_dist = 0.0;
-  double dist = compute_distance_error(ai, target_dist, &dist_err, &d_dist, target_x, target_y);
+  // P term for distance up above
 
   // D
-  double prev_dist_err = 0.0;
   double dist_diff = dist_err - prev_dist_err;
 
   // I
-  static double prev_5_err_dist[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
   static int dist_err_index = 0;
   prev_5_err_dist[dist_err_index] = prev_dist_err;
   dist_err_index = (dist_err_index + 1) % 5;
@@ -1675,26 +1720,23 @@ void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, do
 
   // slow rate to prevent sudden changes
   static int prev_left, prev_right;
-  if (left < prev_left - 15) left = prev_left - 15;
-  if (left > prev_left + 15) left = prev_left + 15;
-  if (right < prev_right - 15) right = prev_right - 15;
-  if (right > prev_right + 15) right = prev_right + 15;
-  prev_left = left;
-  prev_right = right;
+  if (left < prev_left - 10) left = prev_left - 10;
+  if (left > prev_left + 10) left = prev_left + 10;
+  if (right < prev_right - 10) right = prev_right - 10;
+  if (right > prev_right + 10) right = prev_right + 10;
 
   // deadband - ensure minimum speed to overcome friction
   if (left < -100) left = -100;
   if (left > 100) left = 100;
   if (right < -100) right = -100;
   if (right > 100) right = 100;
+  if (left > 0 && left < 10) left = 10;
+  if (right > 0 && right < 10) right = 10;
+  if (left < 0 && left > -10) left = -10;
+  if (right < 0 && right > -10) right = -10;
 
-
-  // stop condition
-  // 可以之后增加连续停止的判定，防止误停？
-  if (dist < target_dist + 5.0) {
-      BT_all_stop(0);
-      return;
-  }
+  prev_left = left;
+  prev_right = right;
 
   fprintf(stderr, "approach_to_target: dist %.2f (err %.2f, d %.2f), fwd %.2f, %.2f, %.2f, turn %.2f, %.2f, %.2f, %.2f, left %d, right %d, ang_err %.2f\n",
           dist, dist_err, d_dist, forward_speed, up_dist, ud_dist, turn, up_ang, ud_ang, ui_ang, left, right, ang_err);
