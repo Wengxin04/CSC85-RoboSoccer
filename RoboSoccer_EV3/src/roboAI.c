@@ -205,8 +205,8 @@ static bool check_anything_lost(struct RoboAI *ai);
 enum {
     FACE_THRESH_DEG   = 10,    // tweak
     ALIGN_THRESH_DEG  = 7,   // tweak
-    TARGET_BALL_DIST  = 100,   // pixels; tweak to your scale
-    TARGET_TARGET_DIST= 100,   // pixels; tweak to your scale
+    TARGET_BALL_DIST  = 150,   // pixels; tweak to your scale
+    TARGET_TARGET_DIST= 80,   // pixels; tweak to your scale
     CLOSE_BALL_SLACK  = 50,    // +/-
     BEHIND_BALL_GAP   = 10,    // min px robot should be "behind" ball wrt goal
     DELTA_TO_TARGET   = 300,    // temporary
@@ -1671,7 +1671,7 @@ void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, do
   if (forward_speed > 100) forward_speed = 100;
 
   int left  = (forward_speed + turn) * 1.1; // 左轮稍微快一点补偿左右轮偏差， 补偿偏差的参数要调！
-  int right = (forward_speed - turn) * 0.9; // wallahi 调整
+  int right = (forward_speed - turn); // wallahi 调整
 
   // slow rate to prevent sudden changes
   static int prev_left, prev_right;
@@ -1968,6 +1968,14 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx, double *stor
           double target_cx, target_cy;
       compute_target_position_soccer(ai, &target_cx, &target_cy);
 
+      if (is_close_to_target(ai, target_cx, target_cy)) {
+          fprintf(stderr, "Already reached target in SOCCER mode, stopping\n");
+          ai->st.state = ST_SOCCER_ROTATE_TO_BALL;
+          BT_motor_port_stop(LEFT_MOTOR, 0);
+          BT_motor_port_stop(RIGHT_MOTOR, 0);
+          break;
+        }
+
       if (is_facing_target(ai, *stored_smx, *stored_smy, target_cx, target_cy) && rotate_flag == -1) {
         ai->st.state = ST_SOCCER_MOVE_TO_TARGET; // facing target
         break;
@@ -2063,7 +2071,7 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx, double *stor
 
         if (is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
           fprintf(stderr, "Reached ball in SOCCER mode, kicking\n");
-          ai->st.state = ST_SOCCER_KICK_BALL;
+          ai->st.state = ST_SOCCER_NORMAL_PLAY_DONE;
           BT_motor_port_stop(LEFT_MOTOR, 0);
           BT_motor_port_stop(RIGHT_MOTOR, 0);
           break;
