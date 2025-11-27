@@ -248,4 +248,6 @@ bool need_defense(struct RoboAI *ai);
 void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy);
 void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy);
 
+void rotate_right_kick(struct RoboAI *ai);
+
 #endif

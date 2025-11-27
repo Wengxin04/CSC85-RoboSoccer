@@ -2674,6 +2674,11 @@ void rotate_right_kick(struct RoboAI *ai)
    usleep(350*1000); // wait for 350 ms
   BT_timed_motor_port_start(KICK_MOTOR, 100, 0, 100, 100);
    usleep(600*1000); // wait for 600 ms
+
+  BT_timed_motor_port_start(RIGHT_MOTOR, -80, 100, 200, 100);
+  usleep(300*1000); // wait for 250 ms
+
+
 }
 
 
