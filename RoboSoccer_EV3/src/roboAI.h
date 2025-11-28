@@ -247,6 +247,7 @@ double correct_motion_vector(double* smx, double*smy, double rotate_angle_deg);
 
 bool need_escape(struct RoboAI *ai, double *smx, double *smy);
 bool need_defense(struct RoboAI *ai);
+bool need_edge_play(struct RoboAI *ai);
 
 void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy);
 void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy);

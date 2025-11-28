@@ -1176,6 +1176,11 @@ static int check_soccer_state_behavior(struct RoboAI *ai, double *smx, double *s
     return DEFEND_BEHAVIOR; // defend
   }
 
+  bool edge_attack = need_edge_play(ai);
+  if (edge_attack) {
+    return EDGE_ATTACK_BEHAVIOR; // edge attack
+  }
+
   // now don't consider edge attack, only do normal attack
   return NORMAL_ATTACK_BEHAVIOR; // normal attack
 }
@@ -1796,7 +1801,7 @@ void kick_ball(struct RoboAI *ai)
     fprintf(stderr, "Kicking the ball!\n");
    BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 1000, 100);
    BT_timed_motor_port_start(LEFT_MOTOR, 100, 100, 1000, 100);
-    usleep(200*1000);
+    usleep(300*1000);
     BT_timed_motor_port_start(KICK_MOTOR, 100, 100, 200, 100);
     usleep(800*1000);
     fprintf(stderr, "Resetting kick motor\n");
@@ -1992,7 +1997,7 @@ double compute_distance_error(struct RoboAI *ai,
 
 static bool check_anything_lost(struct RoboAI *ai)
 {
-  if (!ai || !ai->st.self || !ai->st.ball || !ai->st.opp) return true;
+  if (!ai || !ai->st.self || !ai->st.ball) return true;
   return false;
 }
 
@@ -2013,6 +2018,10 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx, double *stor
     // other behaviors can be added here
     fprintf(stderr, "Defending in soccer normal play mode\n");
     ai->st.state = ST_SOCCER_DEFEND_ROTATE;
+    return;
+  } else if (behavior == EDGE_ATTACK_BEHAVIOR) {
+    fprintf(stderr, "Edge attacking in soccer normal play mode\n");
+    ai->st.state = ST_SOCCER_EDGE_ROTATE_TARGET;
     return;
   }
   switch (state) {
@@ -2244,7 +2253,7 @@ static void compute_goal_center1(int side, double *gcx, double *gcy)
 }
 
 #define DEFENSE_THRESHOLD 300
-#define OPP_FACE_THRESH_DEG 20
+#define OPP_FACE_THRESH_DEG 45
 // 暂时不做更精准的判断
 // 这里其实可以做更精准的判断
 bool need_defense(struct RoboAI *ai){
@@ -2262,7 +2271,7 @@ bool need_defense(struct RoboAI *ai){
 }
 
 #define ESCAPE_THRESHOLD 300
-#define ESCAPE_ANGLE_THRESH_DEG 20
+#define ESCAPE_ANGLE_THRESH_DEG 60
 // 暂时不做更精准的判断
 // 这里其实可以做更精准的判断 --> OPP 的 blob里面的边框方向
 bool need_escape(struct RoboAI *ai, double *smx, double *smy){
@@ -2270,6 +2279,16 @@ bool need_escape(struct RoboAI *ai, double *smx, double *smy){
     double angle = compute_angle_error_to_target(ai, *smx, *smy, ai->st.opp->cx, ai->st.opp->cy);
     return fabs(dist) < ESCAPE_THRESHOLD &&
            fabs(angle) < ESCAPE_ANGLE_THRESH_DEG;
+}
+
+// ball very close to side edges
+#define EDGE_PLAY_THRESHOLD 150
+bool need_edge_play(struct RoboAI *ai)
+{
+  // close to top edge, x is close to 0
+  // close to bottom edge, x is close to sy
+  return (ai->st.ball->cy < EDGE_PLAY_THRESHOLD ||
+          (sy - ai->st.ball->cy) < EDGE_PLAY_THRESHOLD);
 }
 
 /////////////////////////////////////
@@ -2333,6 +2352,10 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy)
     // other behaviors can be added here
     fprintf(stderr, "Normal attack in soccer defense mode\n");
     ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
+    return;
+  } else if (behavior == EDGE_ATTACK_BEHAVIOR) {
+    fprintf(stderr, "Edge attacking in soccer normal play mode\n");
+    ai->st.state = ST_SOCCER_EDGE_ROTATE_TARGET;
     return;
   }
 
@@ -2474,6 +2497,10 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
     fprintf(stderr, "Normal attack in soccer escape mode\n");
     ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
     return;
+  } else if (behavior == EDGE_ATTACK_BEHAVIOR) {
+    fprintf(stderr, "Edge attacking in soccer normal play mode\n");
+    ai->st.state = ST_SOCCER_EDGE_ROTATE_TARGET;
+    return;
   }
 
   switch (state)
@@ -2545,7 +2572,7 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy){
         break;
       }else {
         fprintf(stderr, "Ball found after escape, resuming chase\n");
-        ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
+        ai->st.state = ST_SOCCER_ESCAPE_ROTATE;
         rotate_flag = -1; // reset rotate flag
       }
       sleep(1); // wait for a second
@@ -2625,6 +2652,25 @@ static int compute_ball_nearest_edge(struct RoboAI *ai, double *edge_x, double *
 void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy)
 {
   int state = ai->st.state;
+
+  int behavior = check_soccer_state_behavior(ai, smx, smy);
+  if (behavior == EDGE_ATTACK_BEHAVIOR || behavior == BEHAVIOR_NOT_CHANGE) {
+    // do nothing, continue normal play
+  } else if (behavior == ESCAPE_BEHAVIOR) {
+    fprintf(stderr, "Escaping in soccer normal play mode\n");
+    ai->st.state = ST_SOCCER_ESCAPE_ROTATE;
+    return;
+  } else if (behavior == DEFEND_BEHAVIOR) {
+    // other behaviors can be added here
+    fprintf(stderr, "Defending in soccer normal play mode\n");
+    ai->st.state = ST_SOCCER_DEFEND_ROTATE;
+    return;
+  } else if (behavior == NORMAL_ATTACK_BEHAVIOR) {
+    fprintf(stderr, "Normal attacking in soccer normal play mode\n");
+    ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
+    return;
+  }
+
   if (check_anything_lost(ai)) {
           fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
           BT_motor_port_stop(LEFT_MOTOR, 0);
