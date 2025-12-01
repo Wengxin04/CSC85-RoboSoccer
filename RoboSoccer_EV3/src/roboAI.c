@@ -1801,7 +1801,7 @@ void penalty_mode(struct RoboAI *ai, double *stored_smx, double *stored_smy) {
 
     // fprintf(stderr, "Moving to target in PENALTY mode\n");
     move_to_blob(ai, *stored_smx, *stored_smy, tgt_cx, tgt_cy,
-                   TARGET_TARGET_DIST);
+                 TARGET_TARGET_DIST);
     break;
   }
 
@@ -1851,7 +1851,7 @@ void penalty_mode(struct RoboAI *ai, double *stored_smx, double *stored_smy) {
       ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
       move_flag = -2;
       break;
-    } 
+    }
 
     move_to_blob(ai, *stored_smx, *stored_smy, b_cx, b_cy, TARGET_BALL_DIST);
     break;
@@ -2335,7 +2335,7 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
     }
 
     move_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy,
-                   TARGET_TARGET_DIST);
+                 TARGET_TARGET_DIST);
     break;
   }
   case ST_SOCCER_ROTATE_TO_BALL: {
@@ -2386,8 +2386,8 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
       move_flag = -2;
       break;
     }
-    move_to_blob(ai, *stored_smx, *stored_smy, ai->st.ball->cx,
-                   ai->st.ball->cy, TARGET_BALL_DIST);
+    move_to_blob(ai, *stored_smx, *stored_smy, ai->st.ball->cx, ai->st.ball->cy,
+                 TARGET_BALL_DIST);
     break;
   }
   case ST_SOCCER_KICK_BALL: {
