@@ -1798,21 +1798,10 @@ void penalty_mode(struct RoboAI *ai, double *stored_smx, double *stored_smy) {
       ai->st.state = ST_PENALTY_ROTATE_TO_TARGET;
       break;
     }
-    if (!is_close_to_target(ai, tgt_cx, tgt_cy)) {
-      fprintf(stderr, "Moving to target in PENALTY mode\n");
-      move_to_blob(ai, *stored_smx, *stored_smy, tgt_cx, tgt_cy,
+
+    // fprintf(stderr, "Moving to target in PENALTY mode\n");
+    move_to_blob(ai, *stored_smx, *stored_smy, tgt_cx, tgt_cy,
                    TARGET_TARGET_DIST);
-    } else if (is_close_to_target(ai, tgt_cx, tgt_cy)) {
-      ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
-      double de = 0, dd = 0;
-      double d = compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd, tgt_cx,
-                                        tgt_cy);
-      // fprintf(stderr,
-      //         "change to Rotating to ball in PENALTY mode with distance "
-      //         "difference: %.2f\n",
-      //         d);
-      move_flag = -1; // reset rotate flag
-    }
     break;
   }
 
@@ -1858,15 +1847,13 @@ void penalty_mode(struct RoboAI *ai, double *stored_smx, double *stored_smy) {
       break;
     }
 
-    if (!is_close_to_ball(ai, b_cx, b_cy)) {
-      // fprintf(stderr, "Moving to ball in PENALTY mode\n");
-      move_to_blob(ai, *stored_smx, *stored_smy, b_cx, b_cy, TARGET_BALL_DIST);
-    } else if (is_close_to_ball(ai, b_cx, b_cy)) {
-      ai->st.state = ST_PENALTY_DONE;
-      // fprintf(stderr, "change to Aligning to goal in PENALTY mode with
-      // distance difference: %.2f\n", compute_distance_error(ai));
-      move_flag = -2; // reset move flag
-    }
+    if (!is_facing_target(ai, *stored_smx, *stored_smy, b_cx, b_cy)) {
+      ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
+      move_flag = -2;
+      break;
+    } 
+
+    move_to_blob(ai, *stored_smx, *stored_smy, b_cx, b_cy, TARGET_BALL_DIST);
     break;
   }
 
@@ -2213,6 +2200,25 @@ int check_soccer_state_behavior(struct RoboAI *ai, double *smx, double *smy) {
 void soccer_mode(struct RoboAI *ai, double *smx, double *smy) {
   int state = ai->st.state;
 
+  struct blob *aiBlob[] = {ai->st.ball, ai->st.self, ai->st.opp};
+  struct BlobHistory *aiBlobHist[] = {&trackHist.ball, &trackHist.self,
+                                      &trackHist.opp};
+
+  if (check_anything_lost(ai) == 0) {
+    for (int i = 0; i < 3; i++) {
+      struct blob *b = aiBlob[i];
+      struct BlobHistory *hist = aiBlobHist[i];
+
+      update_blob_history(hist, b);
+      int valid = denoise_exp(hist, &b->cx, &b->cy, &b->vx, &b->vy, &b->dx,
+                              &b->dy, &b->mx, &b->my);
+      if (valid < 0) {
+        fprintf(stderr, "Lost track of a blob, back to 101\n");
+        ai->st.state = ST_PENALTY_ROTATE_TO_TARGET;
+      }
+    }
+  }
+
   if (state >= 10 && state < 20) {
     fprintf(stderr, "Escaping!\n");
     soccer_escape_mode(ai, smx, smy);
@@ -2324,13 +2330,12 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
     if (!is_facing_target(ai, *stored_smx, *stored_smy, target_cx, target_cy)) {
       fprintf(stderr, "Lost facing target in SOCCER mode, rotating to face\n");
       ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
+      move_flag = -2;
       break;
     }
-    if (!is_close_to_target(ai, target_cx, target_cy)) {
-      fprintf(stderr, "Moving to target in SOCCER mode\n");
-      move_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy,
+
+    move_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy,
                    TARGET_TARGET_DIST);
-    }
     break;
   }
   case ST_SOCCER_ROTATE_TO_BALL: {
@@ -2371,19 +2376,18 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
       ai->st.state = ST_SOCCER_KICK_BALL;
       BT_motor_port_stop(LEFT_MOTOR, 0);
       BT_motor_port_stop(RIGHT_MOTOR, 0);
+      move_flag = -2;
       break;
     }
     if (!is_facing_target(ai, *stored_smx, *stored_smy, ai->st.ball->cx,
                           ai->st.ball->cy)) {
       fprintf(stderr, "Lost facing ball in SOCCER mode, rotating to face\n");
       ai->st.state = ST_SOCCER_ROTATE_TO_BALL;
+      move_flag = -2;
       break;
     }
-    if (!is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
-      fprintf(stderr, "Moving to ball in SOCCER mode\n");
-      move_to_blob(ai, *stored_smx, *stored_smy, ai->st.ball->cx,
+    move_to_blob(ai, *stored_smx, *stored_smy, ai->st.ball->cx,
                    ai->st.ball->cy, TARGET_BALL_DIST);
-    }
     break;
   }
   case ST_SOCCER_KICK_BALL: {
@@ -2487,12 +2491,10 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy) {
     if (!is_facing_target(ai, *smx, *smy, target_cx, target_cy)) {
       fprintf(stderr, "Lost facing defense target, rotating to face\n");
       ai->st.state = ST_SOCCER_DEFEND_ROTATE;
+      move_flag = -2;
       break;
     }
-    if (!is_close_to_target(ai, target_cx, target_cy)) {
-      fprintf(stderr, "Moving to defense target\n");
-      move_to_blob(ai, *smx, *smy, target_cx, target_cy, TARGET_DEFENSE_DIST);
-    }
+    move_to_blob(ai, *smx, *smy, target_cx, target_cy, TARGET_DEFENSE_DIST);
     break;
   }
 
@@ -2703,6 +2705,7 @@ void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy) {
       rotating_angle = 0;
       target_angle = 0.0;
       ai->st.state = ST_SOCCER_EDGE_ROTATE_TARGET;
+      move_flag = -2;
       break;
     }
     if (!is_close_to_target(ai, target_cx, target_cy)) {
@@ -2739,15 +2742,15 @@ void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy) {
       ai->st.state = ST_SOCCER_EDGE_KICK;
       BT_motor_port_stop(LEFT_MOTOR, 0);
       BT_motor_port_stop(RIGHT_MOTOR, 0);
+      move_flag = -2;
       break;
     }
     if (!is_facing_target(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy)) {
       ai->st.state = ST_SOCCER_EDGE_ROTATE_BALL;
+      move_flag = -2;
       break;
     }
-    if (!is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
-      move_to_blob(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy, 30);
-    }
+    move_to_blob(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy, 30);
     break;
   }
 
