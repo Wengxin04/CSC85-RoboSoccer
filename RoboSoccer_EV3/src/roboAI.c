@@ -237,14 +237,6 @@ int denoise_exp(struct BlobHistory *h, double *cx, double *cy, double *vx,
 // End of denoising data
 ////////////////////////////////////
 
-// declare static functions
-static void penalty_mode(struct RoboAI *ai, double *smx, double *smy);
-static void chase_mode(struct RoboAI *ai, struct blob *blobs);
-
-static void soccer_mode(struct RoboAI *ai, double *smx, double *smy);
-static int check_soccer_state_behavior(struct RoboAI *ai, double *smx,
-                                       double *smy);
-static bool check_anything_lost(struct RoboAI *ai);
 
 // Tuning knobs for penalty routine
 enum {
@@ -268,14 +260,14 @@ static inline double deg_wrap(double d) {
   return d;
 }
 
-static bool is_facing_target(struct RoboAI *ai, double smx, double smy,
+bool is_facing_target(struct RoboAI *ai, double smx, double smy,
                              double target_cx, double target_cy) {
   double e = compute_angle_error_to_target(ai, smx, smy, target_cx, target_cy);
   fprintf(stderr, "Angle error to target: %.2f deg\n", e);
   return !isnan(e) && fabs(e) <= FACE_THRESH_DEG;
 }
 
-static bool is_close_to_ball(struct RoboAI *ai, double ball_cx,
+bool is_close_to_ball(struct RoboAI *ai, double ball_cx,
                              double ball_cy) {
   double de = 0, dd = 0;
   double d =
@@ -284,7 +276,7 @@ static bool is_close_to_ball(struct RoboAI *ai, double ball_cx,
   return !isnan(d) && d <= (TARGET_BALL_DIST + CLOSE_BALL_SLACK);
 }
 
-static bool is_close_to_target(struct RoboAI *ai, double target_cx,
+bool is_close_to_target(struct RoboAI *ai, double target_cx,
                                double target_cy) {
   if (!ai || !ai->st.self)
     return false;
@@ -1142,7 +1134,7 @@ static int check_ball_position(struct RoboAI *ai) {
 #define BEHAVIOR_NOT_CHANGE 0
 
 // TODO!
-static int check_soccer_state_behavior(struct RoboAI *ai, double *smx,
+int check_soccer_state_behavior(struct RoboAI *ai, double *smx,
                                        double *smy) {
   // determine whether the ai should escape, defend, or attack (normal attack or
   // edge attack) return 1 for escape, 2 for normal attack, 3 for edge attack, 4
@@ -1171,7 +1163,7 @@ static int check_soccer_state_behavior(struct RoboAI *ai, double *smx,
   return NORMAL_ATTACK_BEHAVIOR; // normal attack
 }
 
-static void soccer_mode(struct RoboAI *ai, double *smx, double *smy) {
+void soccer_mode(struct RoboAI *ai, double *smx, double *smy) {
   int state = ai->st.state;
 
   if (state >= 10 && state < 20) {
@@ -1199,7 +1191,7 @@ static void soccer_mode(struct RoboAI *ai, double *smx, double *smy) {
 }
 
 // TODOO: more detailed implementation
-static void penalty_mode(struct RoboAI *ai, double *stored_smx,
+void penalty_mode(struct RoboAI *ai, double *stored_smx,
                          double *stored_smy) {
   fprintf(stderr, "In PENALTY mode, current state: %d\n", ai->st.state);
   int state = ai->st.state;
@@ -1374,7 +1366,7 @@ static void penalty_mode(struct RoboAI *ai, double *stored_smx,
   }
 }
 
-static void chase_mode(struct RoboAI *ai, struct blob *blobs) {
+void chase_mode(struct RoboAI *ai, struct blob *blobs) {
   fprintf(stderr, "In CHASE mode, current state: %d\n", ai->st.state);
   int state = ai->st.state;
   // TODOO: add chase mode logic here
@@ -1984,7 +1976,7 @@ double compute_distance_error(struct RoboAI *ai, double target_dist,
 
 // skeleton for normal play mode in soccer
 
-static bool check_anything_lost(struct RoboAI *ai) {
+bool check_anything_lost(struct RoboAI *ai) {
   if (!ai || !ai->st.self || !ai->st.ball || !ai->st.opp)
     return true;
   return false;
@@ -2208,7 +2200,7 @@ double compute_opp_distance_to_target(struct RoboAI *ai, double target_cx,
   return dist;
 }
 
-static void compute_goal_center1(int side, double *gcx, double *gcy) {
+void compute_goal_center1(int side, double *gcx, double *gcy) {
   // left goal center is: (0, sy/2)
   // right goal center is: (sx, sy/2)
 
@@ -2568,8 +2560,8 @@ void rotate_right_kick(struct RoboAI *ai) {
 }
 
 // 上下左右 0123
-static int compute_ball_nearest_edge(struct RoboAI *ai, double *edge_x,
-                                     double *edge_y) {
+int compute_ball_nearest_edge(struct RoboAI *ai, double *edge_x,
+                              double *edge_y) {
   if (!ai || !ai->st.ball)
     return -1;
 
@@ -2712,10 +2704,10 @@ void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy) {
     }
 
     if (!is_facing_target(ai, *smx, *smy, target_cx, target_cy)) {
-      fprintf(stderr,
-              "state[31]: check rotate_flag = %d, rotating_angle = %.2f, "
-              "target_angle = %.2f\n",
-              rotate_flag, rotating_angle, target_angle);
+      // fprintf(stderr,
+      //         "state[31]: check rotate_flag = %d, rotating_angle = %.2f, "
+      //         "target_angle = %.2f\n",
+      //         rotate_flag, rotating_angle, target_angle);
       rotate_flag = -1; // reset rotate flag
       rotating_angle = 0;
       target_angle = 0.0;

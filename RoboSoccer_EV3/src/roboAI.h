@@ -103,8 +103,6 @@
 #define ST_SOCCER_DEFEND_DONE 42
 #define ST_SOCCER_DEFEND_EMPTY 43
 
-void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy);
-
 #define ST_SOCCER_DONE 99             // Soccer done
 
 struct AI_data{
@@ -223,6 +221,24 @@ struct displayList *clearDP(struct displayList *head);
 *****************************************************************************/
 
 // TOSEE (edit as needed):
+void penalty_mode(struct RoboAI *ai, double *smx, double *smy);
+void chase_mode(struct RoboAI *ai, struct blob *blobs);
+
+void soccer_mode(struct RoboAI *ai, double *smx, double *smy);
+
+void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy);
+
+int check_soccer_state_behavior(struct RoboAI *ai, double *smx,
+                                       double *smy);
+bool check_anything_lost(struct RoboAI *ai);
+
+bool is_facing_target(struct RoboAI *ai, double smx, double smy,
+                             double target_cx, double target_cy);
+bool is_close_to_ball(struct RoboAI *ai, double ball_cx,
+                             double ball_cy);
+
+bool is_close_to_ball(struct RoboAI *ai, double ball_cx,
+                             double ball_cy);
 // basic, reusable soccer behaviours
 void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x, double target_y);
 void move_to_blob(struct RoboAI *ai, double smx, double smy, double t_cx, double t_cy, double target_dist);
@@ -233,16 +249,11 @@ void kick_ball(struct RoboAI *ai);
 double compute_angle_error_to_target(struct RoboAI *ai, double smx, double smy, double target_cx, double target_cy);
 void compute_target_position(struct RoboAI *ai, double *target_cx, double *target_cy);
 double compute_distance_error(struct RoboAI *ai, double target_dist, double *dist_err, double *d_dist, double target_cx, double target_cy);
-void rotate_to_goal(struct RoboAI *ai);
-void rotate_step_blocking(double step_deg);
-void chase_rotate(struct RoboAI *ai, double smx, double smy);
+
 void compute_goal_center(struct RoboAI *ai, double *gcx, double *gcy);
+void compute_goal_center1(int side, double *gcx, double *gcy);
 void compute_target_position_soccer(struct RoboAI *ai, double *target_cx, double *target_cy);
 void compute_target_pos_general(struct RoboAI *ai, double gx, double gy, double delta, double *target_cx, double *target_cy);
-void dribble_ball_towards_goal(struct RoboAI *ai);
-int is_in_kicking_position(struct RoboAI *ai);
-void swerve_around_obstacle(struct RoboAI *ai, struct blob *obstacle);
-void defend_goal(struct RoboAI *ai);
 double correct_motion_vector(double* smx, double*smy, double rotate_angle_deg);
 
 bool need_escape(struct RoboAI *ai, double *smx, double *smy);
@@ -254,6 +265,10 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy);
 
 void rotate_right_kick(struct RoboAI *ai);
 void rotate_left_kick(struct RoboAI *ai);
+
+int compute_ball_nearest_edge(struct RoboAI *ai, double *edge_x, double *edge_y);
 void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy);
+
+bool check_anything_lost(struct RoboAI *ai);
 
 #endif
