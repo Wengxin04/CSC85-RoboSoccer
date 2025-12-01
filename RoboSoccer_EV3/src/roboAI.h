@@ -260,8 +260,7 @@ void compute_target_position(struct RoboAI *ai, double *target_cx, double *targe
 void compute_target_position_soccer(struct RoboAI *ai, double *target_cx, double *target_cy);
 //soccer escape helper
 double compute_target_x(double target_y, double line_slope, double line_intercept);
-void compute_escape_rotate_target(struct RoboAI *ai, double *target_x,
-                                  double *target_y)
+void compute_escape_rotate_target(struct RoboAI *ai, double *target_x, double *target_y);
 //soccer edge helper
 int compute_ball_nearest_edge(struct RoboAI *ai, double *edge_x, double *edge_y);
 
