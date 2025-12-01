@@ -269,4 +269,36 @@ bool check_anything_lost(struct RoboAI *ai);
 // correction helper
 double correct_motion_vector(double* smx, double*smy, double rotate_angle_deg);
 
+// Denosing and Tracking
+#define HISTORY_LEN 5 // Number of frames to remember
+#define MAX_MISSED_FRAMES                                                      \
+  5 // Number of consecutive missed frames before considering blob lost
+
+struct BlobHistory {
+  double cx[HISTORY_LEN]; // Center x history
+  double cy[HISTORY_LEN]; // Center y history
+  double vx[HISTORY_LEN]; // Velocity x history
+  double vy[HISTORY_LEN]; // Velocity y history
+  double dx[HISTORY_LEN]; // Direction x history
+  double dy[HISTORY_LEN]; // Direction y history
+  double mx[HISTORY_LEN];
+  double my[HISTORY_LEN];
+  int count; // How many valid samples stored
+
+  // New fields:
+  int missed_frames; // how many frames in a row blob not detected
+  int is_active;     // 1 if blob is currently tracked, 0 if considered lost
+};
+
+struct TrackingHistory {
+  struct BlobHistory ball;
+  struct BlobHistory self;
+  struct BlobHistory opp;
+};
+
+void correct_direction(struct BlobHistory *h);
+void update_blob_history(struct BlobHistory *h, struct blob *b);
+int denoise_exp(struct BlobHistory *h, double *cx, double *cy, double *vx,
+                double *vy, double *dx, double *dy, double *mx, double *my);
+
 #endif
