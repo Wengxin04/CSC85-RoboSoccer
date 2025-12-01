@@ -238,11 +238,10 @@ int denoise_exp(struct BlobHistory *h, double *cx, double *cy, double *vx,
 ////////////////////////////////////
 
 // declare static functions
-static void soccer_mode(struct RoboAI *ai, struct blob *blobs);
 static void penalty_mode(struct RoboAI *ai, double *smx, double *smy);
 static void chase_mode(struct RoboAI *ai, struct blob *blobs);
 
-static void soccer_test_mode(struct RoboAI *ai, double *smx, double *smy);
+static void soccer_mode(struct RoboAI *ai, double *smx, double *smy);
 static int check_soccer_state_behavior(struct RoboAI *ai, double *smx,
                                        double *smy);
 static bool check_anything_lost(struct RoboAI *ai);
@@ -296,38 +295,6 @@ static bool is_close_to_target(struct RoboAI *ai, double target_cx,
   return dist <= TARGET_TARGET_DIST;
 }
 
-// are we behind the ball and pointing so that a straight push sends the ball
-// toward the opponent goal?
-static bool is_aligned_to_goal_for_shot(struct RoboAI *ai) {
-  if (!ai || !ai->st.self || !ai->st.ball)
-    return false;
-
-  // Vector robot->ball
-  double rbx = ai->st.ball->cx - ai->st.self->cx;
-  double rby = ai->st.ball->cy - ai->st.self->cy;
-  double rbn = hypot(rbx, rby);
-  if (rbn < 1e-6)
-    return false;
-  rbx /= rbn;
-  rby /= rbn;
-
-  // "Goal direction" unit vector in field coordinates.
-  // By your rotate_to_goal(): side==0 -> face 180° (negative X), else 0°
-  // (positive X)
-  double gx = (ai->st.side == 0) ? -1.0 : 1.0;
-  double gy = 0.0;
-
-  // angle between robot->ball and goal dir
-  double dot = rbx * gx + rby * gy;
-  double ang_deg = acos(fmax(-1.0, fmin(1.0, dot))) * 180.0 / M_PI;
-
-  // "behind ball" condition so we push *through* the ball toward goal
-  bool behind = (ai->st.side == 0)
-                    ? (ai->st.self->cx >= ai->st.ball->cx + BEHIND_BALL_GAP)
-                    : (ai->st.self->cx <= ai->st.ball->cx - BEHIND_BALL_GAP);
-
-  return (ang_deg <= ALIGN_THRESH_DEG) && behind;
-}
 
 /**************************************************************
  * Display List Management
@@ -1109,8 +1076,7 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state) {
 
     if (state >= 0 && state < 100) {
       // SOCCER mode
-      // soccer_mode(ai, blobs);
-      soccer_test_mode(ai, &stored_smx, &stored_smy);
+      soccer_mode(ai, &stored_smx, &stored_smy);
     } else if (state >= 100 && state < 200) {
       // PENALTY mode
       penalty_mode(ai, &stored_smx, &stored_smy);
@@ -1141,11 +1107,6 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state) {
 #define BALL_NOT_IN_ATTACK_ZONE 0
 #define BALL_VERY_CLOSE_TO_GOAL 2
 
-#define OBSTACLE_DETECTED 1
-#define NO_OBSTACLE 0
-
-static int last_state = -1; // use to restore state after obstacle avoidance
-
 static int check_ball_position(struct RoboAI *ai) {
   // TODOO: implement function to check ball position
   // return BALL_IN_ATTACK_ZONE or BALL_NOT_IN_ATTACK_ZONE or
@@ -1172,14 +1133,6 @@ static int check_ball_position(struct RoboAI *ai) {
   } else {
     return BALL_IN_ATTACK_ZONE; // ball is in attack zone
   }
-}
-
-// TODO: Consider obstacle case, in what cases we consider obstacle detected?
-static int detect_obstacle(struct RoboAI *ai) {
-  // TODOO: implement function to detect obstacles
-  // return OBSTACLE_DETECTED or NO_OBSTACLE
-  // for now, just return NO_OBSTACLE
-  return NO_OBSTACLE;
 }
 
 #define ESCAPE_BEHAVIOR 1
@@ -1218,7 +1171,7 @@ static int check_soccer_state_behavior(struct RoboAI *ai, double *smx,
   return NORMAL_ATTACK_BEHAVIOR; // normal attack
 }
 
-static void soccer_test_mode(struct RoboAI *ai, double *smx, double *smy) {
+static void soccer_mode(struct RoboAI *ai, double *smx, double *smy) {
   int state = ai->st.state;
 
   if (state >= 10 && state < 20) {
@@ -1243,10 +1196,6 @@ static void soccer_test_mode(struct RoboAI *ai, double *smx, double *smy) {
   // soccer_normal_play_mode(ai, smx, smy);
   // soccer_defense_mode(ai, smx, smy);
   // soccer_escape_mode(ai, smx, smy);
-}
-
-static void soccer_mode(struct RoboAI *ai, struct blob *blobs) {
-  // place holder
 }
 
 // TODOO: more detailed implementation
@@ -1624,10 +1573,10 @@ void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x,
     speed = prev_speed - 10;
   }
 
-  fprintf(stderr,
-          "angle_delta: %.2f, prev_ang_err: %.2f, up_ang: %.2f, ud_ang: %.2f, "
-          "ui_ang: %.2f, speed: %.2f\n",
-          angle_delta, prev_ang_err, up_ang, ud_ang, ui_ang, speed);
+  // fprintf(stderr,
+  //         "angle_delta: %.2f, prev_ang_err: %.2f, up_ang: %.2f, ud_ang: %.2f, "
+  //         "ui_ang: %.2f, speed: %.2f\n",
+  //         angle_delta, prev_ang_err, up_ang, ud_ang, ui_ang, speed);
 
   prev_speed = speed;
   prev_ang_err = angle_delta;
@@ -1809,39 +1758,16 @@ void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x,
   prev_left = left;
   prev_right = right;
 
-  fprintf(
-      stderr,
-      "approach_to_target: dist %.2f (err %.2f, d %.2f), fwd %.2f, %.2f, %.2f, "
-      "turn %.2f, %.2f, %.2f, %.2f, left %d, right %d, ang_err %.2f\n",
-      dist, dist_err, d_dist, forward_speed, up_dist, ud_dist, turn, up_ang,
-      ud_ang, ui_ang, left, right, ang_err);
+  // fprintf(
+  //     stderr,
+  //     "approach_to_target: dist %.2f (err %.2f, d %.2f), fwd %.2f, %.2f, %.2f, "
+  //     "turn %.2f, %.2f, %.2f, %.2f, left %d, right %d, ang_err %.2f\n",
+  //     dist, dist_err, d_dist, forward_speed, up_dist, ud_dist, turn, up_ang,
+  //     ud_ang, ui_ang, left, right, ang_err);
 
   BT_drive(LEFT_MOTOR, RIGHT_MOTOR, left, right);
   // usleep(1000); // 10ms
 }
-
-// void align_to_goal_with_ball(struct RoboAI *ai, double smx, double smy) {
-//     // ensure we keep the ball centered while we drift into a "behind the
-//     ball" pose if (!is_facing_ball(ai, smx, smy)) {
-//         // small corrective snap toward the ball
-//         quick_face_to_ball(ai, smx, smy);
-//         return;
-//     }
-
-//     if (!is_aligned_to_goal_for_shot(ai)) {
-//         // Not behind or not well aligned.
-//         // Simple heuristic: circle slightly around the ball toward the
-//         required side.
-//         // Positive step if we need to move "upfield", negative otherwise.
-//         double step = (ai->st.side == 0) ? +12.0 : -12.0; // tweak
-//         rotate_step_blocking(step);
-//         // Then take a tiny approach step to settle the arc
-//         approach_to_ball(ai, smx, smy);
-//         return;
-//     }
-
-//     // At this point we are behind and oriented; do nothing here.
-// }
 
 // blocking
 void kick_ball(struct RoboAI *ai) {
@@ -2059,7 +1985,7 @@ double compute_distance_error(struct RoboAI *ai, double target_dist,
 // skeleton for normal play mode in soccer
 
 static bool check_anything_lost(struct RoboAI *ai) {
-  if (!ai || !ai->st.self || !ai->st.ball)
+  if (!ai || !ai->st.self || !ai->st.ball || !ai->st.opp)
     return true;
   return false;
 }
