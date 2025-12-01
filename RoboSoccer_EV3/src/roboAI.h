@@ -258,6 +258,13 @@ void compute_goal_center1(int side, double *gcx, double *gcy);
 void compute_target_position(struct RoboAI *ai, double *target_cx, double *target_cy);
 //soccer helper
 void compute_target_position_soccer(struct RoboAI *ai, double *target_cx, double *target_cy);
+double compute_opp_angle_diff_to_target(struct RoboAI *ai, double target_x,
+                                        double target_y);
+double compute_opp_distance_to_target(struct RoboAI *ai, double target_cx,
+                                      double target_cy);
+//soccer defense helper
+void compute_defense_target(struct RoboAI *ai, double *target_cx,
+							double *target_cy);
 //soccer escape helper
 double compute_target_x(double target_y, double line_slope, double line_intercept);
 void compute_escape_rotate_target(struct RoboAI *ai, double *target_x, double *target_y);

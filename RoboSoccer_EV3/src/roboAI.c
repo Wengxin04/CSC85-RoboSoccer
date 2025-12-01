@@ -213,56 +213,6 @@ int denoise_exp(struct BlobHistory *h, double *cx, double *cy, double *vx,
 ////////////////////////////////////
 
 
-// Tuning knobs for penalty routine
-enum {
-  FACE_THRESH_DEG = 20,        // tweak
-  ALIGN_THRESH_DEG = 7,        // tweak
-  TARGET_BALL_DIST = 150,      // pixels; tweak to your scale
-  TARGET_TARGET_DIST = 80,     // pixels; tweak to your scale
-  CLOSE_BALL_SLACK = 50,       // +/-
-  BEHIND_BALL_GAP = 10,        // min px robot should be "behind" ball wrt goal
-  DELTA_TO_TARGET = 300,       // temporary
-  DEFEND_GOAL_THRESHOLD = 450, // temporary
-  TARGET_DEFENSE_DIST = 200,
-};
-
-// Helpers (predicates)
-static inline double deg_wrap(double d) {
-  while (d > 180)
-    d -= 360;
-  while (d < -180)
-    d += 360;
-  return d;
-}
-
-bool is_facing_target(struct RoboAI *ai, double smx, double smy,
-                             double target_cx, double target_cy) {
-  double e = compute_angle_error_to_target(ai, smx, smy, target_cx, target_cy);
-  fprintf(stderr, "Angle error to target: %.2f deg\n", e);
-  return !isnan(e) && fabs(e) <= FACE_THRESH_DEG;
-}
-
-bool is_close_to_ball(struct RoboAI *ai, double ball_cx,
-                             double ball_cy) {
-  double de = 0, dd = 0;
-  double d =
-      compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd, ball_cx, ball_cy);
-  fprintf(stderr, "Distance to ball: %.2f px (err %.2f, d %.2f)\n", d, de, dd);
-  return !isnan(d) && d <= (TARGET_BALL_DIST + CLOSE_BALL_SLACK);
-}
-
-bool is_close_to_target(struct RoboAI *ai, double target_cx,
-                               double target_cy) {
-  if (!ai || !ai->st.self)
-    return false;
-  double dx = target_cx - ai->st.self->cx;
-  double dy = target_cy - ai->st.self->cy;
-  double dist = hypot(dx, dy);
-  fprintf(stderr, "Distance to target: %.2f px\n", dist);
-  return dist <= TARGET_TARGET_DIST;
-}
-
-
 /**************************************************************
  * Display List Management
  *
@@ -1070,37 +1020,128 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state) {
   **********************************************************************************/
 }
 
-#define BALL_IN_ATTACK_ZONE 1
-#define BALL_NOT_IN_ATTACK_ZONE 0
-#define BALL_VERY_CLOSE_TO_GOAL 2
+// Tuning knobs for penalty routine
+enum {
+  FACE_THRESH_DEG = 20,        // tweak
+  ALIGN_THRESH_DEG = 7,        // tweak
+  TARGET_BALL_DIST = 150,      // pixels; tweak to your scale
+  TARGET_TARGET_DIST = 80,     // pixels; tweak to your scale
+  CLOSE_BALL_SLACK = 50,       // +/-
+  BEHIND_BALL_GAP = 10,        // min px robot should be "behind" ball wrt goal
+  DELTA_TO_TARGET = 300,       // temporary
+  DEFEND_GOAL_THRESHOLD = 450, // temporary
+  TARGET_DEFENSE_DIST = 200,
+};
 
-static int check_ball_position(struct RoboAI *ai) {
-  // TODOO: implement function to check ball position
-  // return BALL_IN_ATTACK_ZONE or BALL_NOT_IN_ATTACK_ZONE or
-  // BALL_VERY_CLOSE_TO_GOAL
-  double bx, by;
-  bx = ai->st.ball->cx;
-  by = ai->st.ball->cy;
-
-  // ??? Need to reconsider when to defend, right now just consider when ball is
-  // very close to goal check whether ball is very close to our goal
-  double gx, gy; // goal position
-  compute_goal_center(ai, &gx, &gy);
-  double dist_to_goal = sqrt((bx - gx) * (bx - gx) + (by - gy) * (by - gy));
-  if (dist_to_goal < DEFEND_GOAL_THRESHOLD) {
-    return BALL_VERY_CLOSE_TO_GOAL;
-  }
-
-  // check whether ball is in edge or attack zone
-  // sx and sy are length and width of the field respectively
-  // random values for now: 200 pixels from edge for y, 400 pixels from edge for
-  // x
-  if (by < 200 || by > (sy - 200) || bx < 400 || bx > (sx - 400)) {
-    return BALL_NOT_IN_ATTACK_ZONE; // ball is in edge
-  } else {
-    return BALL_IN_ATTACK_ZONE; // ball is in attack zone
-  }
+// Helpers (predicates)
+static inline double deg_wrap(double d) {
+  while (d > 180)
+    d -= 360;
+  while (d < -180)
+    d += 360;
+  return d;
 }
+
+bool is_facing_target(struct RoboAI *ai, double smx, double smy,
+                             double target_cx, double target_cy) {
+  double e = compute_angle_error_to_target(ai, smx, smy, target_cx, target_cy);
+  fprintf(stderr, "Angle error to target: %.2f deg\n", e);
+  return !isnan(e) && fabs(e) <= FACE_THRESH_DEG;
+}
+
+bool is_close_to_ball(struct RoboAI *ai, double ball_cx,
+                             double ball_cy) {
+  double de = 0, dd = 0;
+  double d =
+      compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd, ball_cx, ball_cy);
+  fprintf(stderr, "Distance to ball: %.2f px (err %.2f, d %.2f)\n", d, de, dd);
+  return !isnan(d) && d <= (TARGET_BALL_DIST + CLOSE_BALL_SLACK);
+}
+
+bool is_close_to_target(struct RoboAI *ai, double target_cx,
+                               double target_cy) {
+  if (!ai || !ai->st.self)
+    return false;
+  double dx = target_cx - ai->st.self->cx;
+  double dy = target_cy - ai->st.self->cy;
+  double dist = hypot(dx, dy);
+  fprintf(stderr, "Distance to target: %.2f px\n", dist);
+  return dist <= TARGET_TARGET_DIST;
+}
+
+#define DEFENSE_THRESHOLD 300
+#define OPP_FACE_THRESH_DEG 45
+// 暂时不做更精准的判断
+// 这里其实可以做更精准的判断
+bool need_defense(struct RoboAI *ai) {
+  // opp 离球很近
+  double opp_ball_dist =
+      compute_opp_distance_to_target(ai, ai->st.ball->cx, ai->st.ball->cy);
+  // opp 朝球的方向对齐
+  double opp_ball_angle =
+      compute_opp_angle_diff_to_target(ai, ai->st.ball->cx, ai->st.ball->cy);
+  // opp 朝向我方球门的方向对齐
+  double gx, gy;
+  compute_goal_center1(1 - ai->st.side, &gx, &gy);
+  double opp_goal_angle = compute_opp_angle_diff_to_target(ai, gx, gy);
+  return fabs(opp_ball_dist) < DEFENSE_THRESHOLD &&
+         fabs(opp_ball_angle) < OPP_FACE_THRESH_DEG &&
+         fabs(opp_goal_angle) < OPP_FACE_THRESH_DEG;
+}
+
+#define ESCAPE_THRESHOLD 300
+#define ESCAPE_ANGLE_THRESH_DEG 60
+// 暂时不做更精准的判断
+// 这里其实可以做更精准的判断 --> OPP 的 blob里面的边框方向
+bool need_escape(struct RoboAI *ai, double *smx, double *smy) {
+  double dist =
+      compute_opp_distance_to_target(ai, ai->st.self->cx, ai->st.self->cy);
+  double angle = compute_angle_error_to_target(ai, *smx, *smy, ai->st.opp->cx,
+                                               ai->st.opp->cy);
+  return fabs(dist) < ESCAPE_THRESHOLD && fabs(angle) < ESCAPE_ANGLE_THRESH_DEG;
+}
+
+// ball very close to side edges
+#define EDGE_PLAY_THRESHOLD 150
+bool need_edge_play(struct RoboAI *ai) {
+  // close to top edge, x is close to 0
+  // close to bottom edge, x is close to sy
+  return (ai->st.ball->cy < EDGE_PLAY_THRESHOLD ||
+          (sy - ai->st.ball->cy) < EDGE_PLAY_THRESHOLD);
+}
+
+// 可能能再用这个？？
+// #define BALL_IN_ATTACK_ZONE 1
+// #define BALL_NOT_IN_ATTACK_ZONE 0
+// #define BALL_VERY_CLOSE_TO_GOAL 2
+
+// static int check_ball_position(struct RoboAI *ai) {
+//   // TODOO: implement function to check ball position
+//   // return BALL_IN_ATTACK_ZONE or BALL_NOT_IN_ATTACK_ZONE or
+//   // BALL_VERY_CLOSE_TO_GOAL
+//   double bx, by;
+//   bx = ai->st.ball->cx;
+//   by = ai->st.ball->cy;
+
+//   // ??? Need to reconsider when to defend, right now just consider when ball is
+//   // very close to goal check whether ball is very close to our goal
+//   double gx, gy; // goal position
+//   compute_goal_center(ai, &gx, &gy);
+//   double dist_to_goal = sqrt((bx - gx) * (bx - gx) + (by - gy) * (by - gy));
+//   if (dist_to_goal < DEFEND_GOAL_THRESHOLD) {
+//     return BALL_VERY_CLOSE_TO_GOAL;
+//   }
+
+//   // check whether ball is in edge or attack zone
+//   // sx and sy are length and width of the field respectively
+//   // random values for now: 200 pixels from edge for y, 400 pixels from edge for
+//   // x
+//   if (by < 200 || by > (sy - 200) || bx < 400 || bx > (sx - 400)) {
+//     return BALL_NOT_IN_ATTACK_ZONE; // ball is in edge
+//   } else {
+//     return BALL_IN_ATTACK_ZONE; // ball is in attack zone
+//   }
+// }
 
 #define ESCAPE_BEHAVIOR 1
 #define NORMAL_ATTACK_BEHAVIOR 2
@@ -1108,324 +1149,11 @@ static int check_ball_position(struct RoboAI *ai) {
 #define DEFEND_BEHAVIOR 4
 #define BEHAVIOR_NOT_CHANGE 0
 
-// TODO!
-int check_soccer_state_behavior(struct RoboAI *ai, double *smx,
-                                       double *smy) {
-  // determine whether the ai should escape, defend, or attack (normal attack or
-  // edge attack) return 1 for escape, 2 for normal attack, 3 for edge attack, 4
-  // for defend
-
-  if (rotate_flag > 0 || check_anything_lost(ai)) {
-    return BEHAVIOR_NOT_CHANGE; // still rotating, do not change behavior
-  }
-
-  bool escape = need_escape(ai, smx, smy);
-  if (escape) {
-    return ESCAPE_BEHAVIOR; // escape
-  }
-
-  bool defend = need_defense(ai);
-  if (defend) {
-    return DEFEND_BEHAVIOR; // defend
-  }
-
-  bool edge_attack = need_edge_play(ai);
-  if (edge_attack) {
-    return EDGE_ATTACK_BEHAVIOR; // edge attack
-  }
-
-  // now don't consider edge attack, only do normal attack
-  return NORMAL_ATTACK_BEHAVIOR; // normal attack
-}
-
-void soccer_mode(struct RoboAI *ai, double *smx, double *smy) {
-  int state = ai->st.state;
-
-  if (state >= 10 && state < 20) {
-    fprintf(stderr, "Escaping!\n");
-    soccer_escape_mode(ai, smx, smy);
-  } else if (state >= 40 && state < 50) {
-    fprintf(stderr, "Defending goal\n");
-    soccer_defense_mode(ai, smx, smy);
-  } else if (state >= 20 && state < 30) {
-    fprintf(stderr, "Normal attack mode\n");
-    soccer_normal_play_mode(ai, smx, smy);
-  } else if (state >= 30 && state < 40) {
-    fprintf(stderr, "Edge attack mode\n");
-    soccer_edge_play_mode(ai, smx, smy);
-    return;
-  } else {
-    fprintf(stderr, "In SOCCER test mode, current state: %d\n", state);
-    ai->st.state = 20; // set to normal play mode
-    soccer_normal_play_mode(ai, smx, smy);
-  }
-
-  // soccer_normal_play_mode(ai, smx, smy);
-  // soccer_defense_mode(ai, smx, smy);
-  // soccer_escape_mode(ai, smx, smy);
-}
-
-// TODOO: more detailed implementation
-void penalty_mode(struct RoboAI *ai, double *stored_smx,
-                         double *stored_smy) {
-  fprintf(stderr, "In PENALTY mode, current state: %d\n", ai->st.state);
-  int state = ai->st.state;
-
-  // denoise check for all blobs
-  struct blob *aiBlob[] = {ai->st.ball, ai->st.self, ai->st.opp};
-  struct BlobHistory *aiBlobHist[] = {&trackHist.ball, &trackHist.self,
-                                      &trackHist.opp};
-
-  if (check_anything_lost(ai) == 0) {
-    for (int i = 0; i < 3; i++) {
-      struct blob *b = aiBlob[i];
-      struct BlobHistory *hist = aiBlobHist[i];
-
-      update_blob_history(hist, b);
-      int valid = denoise_exp(hist, &b->cx, &b->cy, &b->vx, &b->vy, &b->dx,
-                              &b->dy, &b->mx, &b->my);
-      if (valid < 0) {
-        fprintf(stderr, "Lost track of a blob, back to 101\n");
-        ai->st.state = ST_PENALTY_ROTATE_TO_TARGET;
-      }
-    }
-  }
-
-  // TODOO: add more transitions (lost track, reset, still moving etc)
-  // now only consider the main flow
-  switch (state) {
-  case ST_PENALTY_ROTATE_TO_TARGET:
-    {
-
-      double target_cx, target_cy;
-      compute_target_position_soccer(ai, &target_cx, &target_cy);
-
-      if (is_close_to_target(ai, target_cx, target_cy)) {
-        ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
-        move_flag = -2;
-        break;
-      }
-      if (is_facing_target(ai, *stored_smx, *stored_smy, target_cx,
-                           target_cy) &&
-          rotate_flag == -1) {
-        ai->st.state = ST_PENALTY_MOVE_TO_TARGET; // facing target
-                                                  // target_angle = 0;
-        break;
-      }
-
-      // non-blocking rotate to target
-      rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
-
-      if (rotate_flag == -2) {
-        fprintf(stderr, "Facing target achieved in PENALTY mode\n");
-        ai->st.state = ST_PENALTY_MOVE_TO_TARGET;
-        rotate_flag = -1; // reset rotate flag
-        correct_motion_vector(stored_smx, stored_smy, target_angle);
-        target_angle = 0;
-      }
-      break;
-    }
-
-  case ST_PENALTY_MOVE_TO_TARGET: {
-    // calculate target position
-    double tgt_cx, tgt_cy;
-    compute_target_position_soccer(ai, &tgt_cx, &tgt_cy);
-
-    if (is_close_to_target(ai, tgt_cx, tgt_cy)) {
-      ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
-      // ai->st.state = ST_PENALTY_DONE;
-      double de = 0, dd = 0;
-      double d = compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd, tgt_cx,
-                                        tgt_cy);
-      // fprintf(stderr,
-      //         "change to Rotating to ball in PENALTY mode with distance "
-      //         "difference: %.2f\n",
-      //         d);
-      move_flag = -2;
-      break;
-    }
-
-    if (!is_facing_target(ai, *stored_smx, *stored_smy, tgt_cx, tgt_cy)) {
-      ai->st.state = ST_PENALTY_ROTATE_TO_TARGET;
-      break;
-    }
-    if (!is_close_to_target(ai, tgt_cx, tgt_cy)) {
-      fprintf(stderr, "Moving to target in PENALTY mode\n");
-      move_to_blob(ai, *stored_smx, *stored_smy, tgt_cx, tgt_cy,
-                   TARGET_TARGET_DIST);
-    } else if (is_close_to_target(ai, tgt_cx, tgt_cy)) {
-      ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
-      double de = 0, dd = 0;
-      double d = compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd, tgt_cx,
-                                        tgt_cy);
-      // fprintf(stderr,
-      //         "change to Rotating to ball in PENALTY mode with distance "
-      //         "difference: %.2f\n",
-      //         d);
-      move_flag = -1; // reset rotate flag
-    }
-    break;
-  }
-
-  case ST_PENALTY_ROTATE_TO_BALL: {
-    // ball position
-    double ball_cx = ai->st.ball->cx;
-    double ball_cy = ai->st.ball->cy;
-    // double angle_error = compute_angle_error_to_target(ai, *stored_smx,
-    // *stored_smy, ball_cx, ball_cy);
-    if (is_facing_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy) &&
-        rotate_flag == -1) {
-      // fprintf(stderr, "Rotating to face target in PENALTY mode\n");
-      // rotate_flag = -1;
-      ai->st.state = ST_PENALTY_MOVE_TO_BALL; // facing target
-                                              // target_angle = 0;
-      break;
-    }
-
-    // non-blocking rotate to target
-    rotate_to_blob(ai, *stored_smx, *stored_smy, ball_cx, ball_cy);
-
-    if (rotate_flag == -2) {
-      fprintf(stderr, "Facing target achieved in PENALTY mode\n");
-      ai->st.state = ST_PENALTY_MOVE_TO_BALL;
-      rotate_flag = -1; // reset rotate flag
-      correct_motion_vector(stored_smx, stored_smy, target_angle);
-      target_angle = 0;
-    }
-    break;
-  }
-
-  case ST_PENALTY_MOVE_TO_BALL: {
-    // ball position
-    double b_cx = ai->st.ball->cx;
-    double b_cy = ai->st.ball->cy;
-
-    if (is_close_to_ball(ai, b_cx, b_cy)) {
-      ai->st.state = ST_PENALTY_KICK_BALL;
-      // fprintf(stderr, "change to Aligning to goal in PENALTY mode with
-      // distance difference: %.2f\n", compute_distance_error(ai));
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
-      break;
-    }
-
-    if (!is_close_to_ball(ai, b_cx, b_cy)) {
-      // fprintf(stderr, "Moving to ball in PENALTY mode\n");
-      move_to_blob(ai, *stored_smx, *stored_smy, b_cx, b_cy, TARGET_BALL_DIST);
-    } else if (is_close_to_ball(ai, b_cx, b_cy)) {
-      ai->st.state = ST_PENALTY_DONE;
-      // fprintf(stderr, "change to Aligning to goal in PENALTY mode with
-      // distance difference: %.2f\n", compute_distance_error(ai));
-      move_flag = -2; // reset move flag
-    }
-    break;
-  }
-
-  case ST_PENALTY_KICK_BALL: {
-    kick_ball(ai);
-    ai->st.state = ST_PENALTY_DONE;
-    break;
-  }
-
-  case ST_PENALTY_DONE: {
-    BT_motor_port_stop(LEFT_MOTOR, 0);
-    BT_motor_port_stop(RIGHT_MOTOR, 0);
-    break;
-  }
-
-  default: {
-    fprintf(stderr, "Unknown PENALTY state: %d\n", state);
-    ai->st.state = ST_PENALTY_ROTATE_TO_TARGET;
-    break;
-  }
-  }
-}
-
-void chase_mode(struct RoboAI *ai, struct blob *blobs) {
-  fprintf(stderr, "In CHASE mode, current state: %d\n", ai->st.state);
-  int state = ai->st.state;
-  // TODOO: add chase mode logic here
-  switch (state) {
-  case ST_CHASE_ROTATE_TO_BALL:
-    if (ai == NULL || ai->st.ball == NULL) {
-      fprintf(stderr, "Ball lost after kick, rotating to search\n");
-      ai->st.state = ST_CHASE_DONE;
-      usleep(500 * 1000); // wait for a second
-      break;
-    }
-    // TODOO: implement rotate to ball logic
-    if (!is_facing_target(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx,
-                          ai->st.ball->cy)) {
-      fprintf(stderr, "Rotating to face ball in CHASE mode\n");
-      rotate_to_blob(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx,
-                     ai->st.ball->cy);
-    } else {
-      fprintf(stderr, "Facing ball achieved in CHASE mode\n");
-      ai->st.state = ST_CHASE_MOVE_TO_BALL;
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
-    }
-    break;
-
-  case ST_CHASE_MOVE_TO_BALL:
-    // TODOO: implement move to ball logic
-    if (ai == NULL || ai->st.ball == NULL) {
-      fprintf(stderr, "Ball lost after kick, rotating to search\n");
-      ai->st.state = ST_CHASE_DONE;
-      usleep(500 * 1000); // wait for a second
-      break;
-    }
-    if (!is_facing_target(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx,
-                          ai->st.ball->cy)) {
-      ai->st.state = ST_CHASE_ROTATE_TO_BALL;
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
-      break;
-    } else if (!is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
-      // fprintf(stderr, "Moving to ball in CHASE mode\n");
-      move_to_blob(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx, ai->st.ball->cy,
-                   TARGET_BALL_DIST);
-    } else if (is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
-      ai->st.state = ST_CHASE_KICK_BALL;
-      // fprintf(stderr, "change to Kicking ball in CHASE mode with distance
-      // difference: %.2f\n", compute_distance_error(ai));
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
-      move_flag = -2; // reset move flag
-    }
-    break;
-
-  case ST_CHASE_KICK_BALL:
-    if (ai == NULL || ai->st.ball == NULL) {
-      fprintf(stderr, "Ball lost after kick, rotating to search\n");
-      ai->st.state = ST_CHASE_DONE;
-      usleep(500 * 1000); // wait for a second
-      break;
-    }
-
-    kick_ball(ai);
-    ai->st.state = ST_CHASE_ROTATE_TO_BALL;
-    break;
-
-  case ST_CHASE_DONE:
-    if (ai == NULL || ai->st.ball == NULL) {
-      fprintf(stderr, "Ball lost after kick, rotating to search\n");
-      ai->st.state = ST_CHASE_DONE;
-      usleep(500 * 1000); // wait for a second
-      break;
-    } else {
-      fprintf(stderr, "Ball found after kick, resuming chase\n");
-      ai->st.state = ST_CHASE_ROTATE_TO_BALL;
-    }
-    usleep(10 * 1000); // wait for a second
-    break;
-
-  default:
-    fprintf(stderr, "Unknown CHASE state: %d\n", state);
-    ai->st.state = ST_CHASE_ROTATE_TO_BALL;
-    break;
-  }
-}
+/**********************************
+ * 
+ * motion control functions
+ * 
+ ************************************/
 
 // TODOO: implement the four functions below
 // change to non-blocking versions
@@ -1750,14 +1478,42 @@ void kick_ball(struct RoboAI *ai) {
   usleep(500 * 1000);
 }
 
+void rotate_left_kick(struct RoboAI *ai) {
+  BT_timed_motor_port_start(RIGHT_MOTOR, 70, 50, 400, 50);
+  BT_timed_motor_port_start(LEFT_MOTOR, 70, 50, 400, 50);
+  usleep(600 * 1000); // wait for 600 ms
+  BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 500, 100);
+  BT_timed_motor_port_start(LEFT_MOTOR, -100, 100, 500, 100);
+  usleep(350 * 1000); // wait for 350 ms
+  BT_timed_motor_port_start(KICK_MOTOR, 100, 0, 100, 100);
+  usleep(600 * 1000); // wait for 600 ms
+
+  BT_timed_motor_port_start(KICK_MOTOR, -80, 100, 200, 100);
+  usleep(300 * 1000); // wait for 250 ms
+}
+
+void rotate_right_kick(struct RoboAI *ai) {
+  BT_timed_motor_port_start(RIGHT_MOTOR, 100, 50, 600, 50);
+  BT_timed_motor_port_start(LEFT_MOTOR, 100, 50, 600, 50);
+  usleep(700 * 1000); // wait for 600 ms
+  BT_timed_motor_port_start(RIGHT_MOTOR, -100, 100, 500, 100);
+  BT_timed_motor_port_start(LEFT_MOTOR, 100, 100, 500, 100);
+  usleep(350 * 1000); // wait for 350 ms
+  BT_timed_motor_port_start(KICK_MOTOR, 100, 0, 100, 100);
+  usleep(600 * 1000); // wait for 600 ms
+
+  BT_timed_motor_port_start(KICK_MOTOR, -80, 100, 200, 100);
+  usleep(300 * 1000); // wait for 250 ms
+}
+
 // TODOO: need functions to check status (i.e. facing ball, close to ball,
 // aligned to goal) at top of file
 
-/////////////////////////////////////////////////////////////////////////////////
-// temporary logic
-// without test yet !
-// 有八百个参数可能要调
-/////////////////////////////////////////////////////////////////////////////////
+/***********************************
+ * 
+ * computations functions
+ * 
+ ************************************/
 
 // a function that computes the gcx, gcy coordinate of the goal center based on
 // which side we are on
@@ -1949,14 +1705,548 @@ double compute_distance_error(struct RoboAI *ai, double target_dist,
   return dist;
 }
 
-// skeleton for normal play mode in soccer
-
+// unitility functions 
 bool check_anything_lost(struct RoboAI *ai) {
   if (!ai || !ai->st.self || !ai->st.ball || !ai->st.opp)
     return true;
   return false;
 }
 
+/***********************************
+ * 
+ * AI mode functions
+ * 
+ ***********************************/
+
+// TODOO: more detailed implementation
+void penalty_mode(struct RoboAI *ai, double *stored_smx,
+                         double *stored_smy) {
+  fprintf(stderr, "In PENALTY mode, current state: %d\n", ai->st.state);
+  int state = ai->st.state;
+
+  // denoise check for all blobs
+  struct blob *aiBlob[] = {ai->st.ball, ai->st.self, ai->st.opp};
+  struct BlobHistory *aiBlobHist[] = {&trackHist.ball, &trackHist.self,
+                                      &trackHist.opp};
+
+  if (check_anything_lost(ai) == 0) {
+    for (int i = 0; i < 3; i++) {
+      struct blob *b = aiBlob[i];
+      struct BlobHistory *hist = aiBlobHist[i];
+
+      update_blob_history(hist, b);
+      int valid = denoise_exp(hist, &b->cx, &b->cy, &b->vx, &b->vy, &b->dx,
+                              &b->dy, &b->mx, &b->my);
+      if (valid < 0) {
+        fprintf(stderr, "Lost track of a blob, back to 101\n");
+        ai->st.state = ST_PENALTY_ROTATE_TO_TARGET;
+      }
+    }
+  }
+
+  // TODOO: add more transitions (lost track, reset, still moving etc)
+  // now only consider the main flow
+  switch (state) {
+  case ST_PENALTY_ROTATE_TO_TARGET:
+    {
+
+      double target_cx, target_cy;
+      compute_target_position_soccer(ai, &target_cx, &target_cy);
+
+      if (is_close_to_target(ai, target_cx, target_cy)) {
+        ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
+        move_flag = -2;
+        break;
+      }
+      if (is_facing_target(ai, *stored_smx, *stored_smy, target_cx,
+                           target_cy) &&
+          rotate_flag == -1) {
+        ai->st.state = ST_PENALTY_MOVE_TO_TARGET; // facing target
+                                                  // target_angle = 0;
+        break;
+      }
+
+      // non-blocking rotate to target
+      rotate_to_blob(ai, *stored_smx, *stored_smy, target_cx, target_cy);
+
+      if (rotate_flag == -2) {
+        fprintf(stderr, "Facing target achieved in PENALTY mode\n");
+        ai->st.state = ST_PENALTY_MOVE_TO_TARGET;
+        rotate_flag = -1; // reset rotate flag
+        correct_motion_vector(stored_smx, stored_smy, target_angle);
+        target_angle = 0;
+      }
+      break;
+    }
+
+  case ST_PENALTY_MOVE_TO_TARGET: {
+    // calculate target position
+    double tgt_cx, tgt_cy;
+    compute_target_position_soccer(ai, &tgt_cx, &tgt_cy);
+
+    if (is_close_to_target(ai, tgt_cx, tgt_cy)) {
+      ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
+      // ai->st.state = ST_PENALTY_DONE;
+      double de = 0, dd = 0;
+      double d = compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd, tgt_cx,
+                                        tgt_cy);
+      // fprintf(stderr,
+      //         "change to Rotating to ball in PENALTY mode with distance "
+      //         "difference: %.2f\n",
+      //         d);
+      move_flag = -2;
+      break;
+    }
+
+    if (!is_facing_target(ai, *stored_smx, *stored_smy, tgt_cx, tgt_cy)) {
+      ai->st.state = ST_PENALTY_ROTATE_TO_TARGET;
+      break;
+    }
+    if (!is_close_to_target(ai, tgt_cx, tgt_cy)) {
+      fprintf(stderr, "Moving to target in PENALTY mode\n");
+      move_to_blob(ai, *stored_smx, *stored_smy, tgt_cx, tgt_cy,
+                   TARGET_TARGET_DIST);
+    } else if (is_close_to_target(ai, tgt_cx, tgt_cy)) {
+      ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
+      double de = 0, dd = 0;
+      double d = compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd, tgt_cx,
+                                        tgt_cy);
+      // fprintf(stderr,
+      //         "change to Rotating to ball in PENALTY mode with distance "
+      //         "difference: %.2f\n",
+      //         d);
+      move_flag = -1; // reset rotate flag
+    }
+    break;
+  }
+
+  case ST_PENALTY_ROTATE_TO_BALL: {
+    // ball position
+    double ball_cx = ai->st.ball->cx;
+    double ball_cy = ai->st.ball->cy;
+    // double angle_error = compute_angle_error_to_target(ai, *stored_smx,
+    // *stored_smy, ball_cx, ball_cy);
+    if (is_facing_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy) &&
+        rotate_flag == -1) {
+      // fprintf(stderr, "Rotating to face target in PENALTY mode\n");
+      // rotate_flag = -1;
+      ai->st.state = ST_PENALTY_MOVE_TO_BALL; // facing target
+                                              // target_angle = 0;
+      break;
+    }
+
+    // non-blocking rotate to target
+    rotate_to_blob(ai, *stored_smx, *stored_smy, ball_cx, ball_cy);
+
+    if (rotate_flag == -2) {
+      fprintf(stderr, "Facing target achieved in PENALTY mode\n");
+      ai->st.state = ST_PENALTY_MOVE_TO_BALL;
+      rotate_flag = -1; // reset rotate flag
+      correct_motion_vector(stored_smx, stored_smy, target_angle);
+      target_angle = 0;
+    }
+    break;
+  }
+
+  case ST_PENALTY_MOVE_TO_BALL: {
+    // ball position
+    double b_cx = ai->st.ball->cx;
+    double b_cy = ai->st.ball->cy;
+
+    if (is_close_to_ball(ai, b_cx, b_cy)) {
+      ai->st.state = ST_PENALTY_KICK_BALL;
+      // fprintf(stderr, "change to Aligning to goal in PENALTY mode with
+      // distance difference: %.2f\n", compute_distance_error(ai));
+      BT_motor_port_stop(LEFT_MOTOR, 0);
+      BT_motor_port_stop(RIGHT_MOTOR, 0);
+      break;
+    }
+
+    if (!is_close_to_ball(ai, b_cx, b_cy)) {
+      // fprintf(stderr, "Moving to ball in PENALTY mode\n");
+      move_to_blob(ai, *stored_smx, *stored_smy, b_cx, b_cy, TARGET_BALL_DIST);
+    } else if (is_close_to_ball(ai, b_cx, b_cy)) {
+      ai->st.state = ST_PENALTY_DONE;
+      // fprintf(stderr, "change to Aligning to goal in PENALTY mode with
+      // distance difference: %.2f\n", compute_distance_error(ai));
+      move_flag = -2; // reset move flag
+    }
+    break;
+  }
+
+  case ST_PENALTY_KICK_BALL: {
+    kick_ball(ai);
+    ai->st.state = ST_PENALTY_DONE;
+    break;
+  }
+
+  case ST_PENALTY_DONE: {
+    BT_motor_port_stop(LEFT_MOTOR, 0);
+    BT_motor_port_stop(RIGHT_MOTOR, 0);
+    break;
+  }
+
+  default: {
+    fprintf(stderr, "Unknown PENALTY state: %d\n", state);
+    ai->st.state = ST_PENALTY_ROTATE_TO_TARGET;
+    break;
+  }
+  }
+}
+
+void chase_mode(struct RoboAI *ai, struct blob *blobs) {
+  fprintf(stderr, "In CHASE mode, current state: %d\n", ai->st.state);
+  int state = ai->st.state;
+  // TODOO: add chase mode logic here
+  switch (state) {
+  case ST_CHASE_ROTATE_TO_BALL:
+    if (ai == NULL || ai->st.ball == NULL) {
+      fprintf(stderr, "Ball lost after kick, rotating to search\n");
+      ai->st.state = ST_CHASE_DONE;
+      usleep(500 * 1000); // wait for a second
+      break;
+    }
+    // TODOO: implement rotate to ball logic
+    if (!is_facing_target(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx,
+                          ai->st.ball->cy)) {
+      fprintf(stderr, "Rotating to face ball in CHASE mode\n");
+      rotate_to_blob(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx,
+                     ai->st.ball->cy);
+    } else {
+      fprintf(stderr, "Facing ball achieved in CHASE mode\n");
+      ai->st.state = ST_CHASE_MOVE_TO_BALL;
+      BT_motor_port_stop(LEFT_MOTOR, 0);
+      BT_motor_port_stop(RIGHT_MOTOR, 0);
+    }
+    break;
+
+  case ST_CHASE_MOVE_TO_BALL:
+    // TODOO: implement move to ball logic
+    if (ai == NULL || ai->st.ball == NULL) {
+      fprintf(stderr, "Ball lost after kick, rotating to search\n");
+      ai->st.state = ST_CHASE_DONE;
+      usleep(500 * 1000); // wait for a second
+      break;
+    }
+    if (!is_facing_target(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx,
+                          ai->st.ball->cy)) {
+      ai->st.state = ST_CHASE_ROTATE_TO_BALL;
+      BT_motor_port_stop(LEFT_MOTOR, 0);
+      BT_motor_port_stop(RIGHT_MOTOR, 0);
+      break;
+    } else if (!is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
+      // fprintf(stderr, "Moving to ball in CHASE mode\n");
+      move_to_blob(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx, ai->st.ball->cy,
+                   TARGET_BALL_DIST);
+    } else if (is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
+      ai->st.state = ST_CHASE_KICK_BALL;
+      // fprintf(stderr, "change to Kicking ball in CHASE mode with distance
+      // difference: %.2f\n", compute_distance_error(ai));
+      BT_motor_port_stop(LEFT_MOTOR, 0);
+      BT_motor_port_stop(RIGHT_MOTOR, 0);
+      move_flag = -2; // reset move flag
+    }
+    break;
+
+  case ST_CHASE_KICK_BALL:
+    if (ai == NULL || ai->st.ball == NULL) {
+      fprintf(stderr, "Ball lost after kick, rotating to search\n");
+      ai->st.state = ST_CHASE_DONE;
+      usleep(500 * 1000); // wait for a second
+      break;
+    }
+
+    kick_ball(ai);
+    ai->st.state = ST_CHASE_ROTATE_TO_BALL;
+    break;
+
+  case ST_CHASE_DONE:
+    if (ai == NULL || ai->st.ball == NULL) {
+      fprintf(stderr, "Ball lost after kick, rotating to search\n");
+      ai->st.state = ST_CHASE_DONE;
+      usleep(500 * 1000); // wait for a second
+      break;
+    } else {
+      fprintf(stderr, "Ball found after kick, resuming chase\n");
+      ai->st.state = ST_CHASE_ROTATE_TO_BALL;
+    }
+    usleep(10 * 1000); // wait for a second
+    break;
+
+  default:
+    fprintf(stderr, "Unknown CHASE state: %d\n", state);
+    ai->st.state = ST_CHASE_ROTATE_TO_BALL;
+    break;
+  }
+}
+
+/***********************************
+ * 
+ * soccer mode and sub-modes
+ * 
+ ***********************************/
+ // helpers
+// soccer mode helper functions
+double compute_opp_angle_diff_to_target(struct RoboAI *ai, double target_x,
+                                        double target_y) {
+  if (!ai || !ai->st.opp)
+    return 0.0;
+
+  // position deltas
+  double dx = target_x - ai->st.opp->cx;
+  double dy = target_y - ai->st.opp->cy;
+  double ang_to_target = atan2(dy, dx);
+
+  double hdx = ai->st.odx;
+  double hdy = ai->st.ody;
+
+  double ang_opp = atan2(hdy, hdx);
+
+  // angle error
+  double ang_err = ang_to_target - ang_opp;
+
+  // normalized to [-pi/2, pi/2]
+  // 我们只关心opp direction vector 所在直线和opp-target vector 的夹角
+  // first normalize to [-pi, pi]
+  while (ang_err > M_PI)
+    ang_err -= 2 * M_PI;
+  while (ang_err < -M_PI)
+    ang_err += 2 * M_PI;
+  // reduce to [-pi/2, pi/2] because direction and its opposite represent the
+  // same line
+  if (ang_err > M_PI / 2)
+    ang_err -= M_PI;
+  else if (ang_err < -M_PI / 2)
+    ang_err += M_PI;
+  // convert to degrees
+  return ang_err * (180.0 / M_PI);
+}
+
+double compute_opp_distance_to_target(struct RoboAI *ai, double target_cx,
+                                      double target_cy) {
+  if (!ai || !ai->st.opp)
+    return NAN;
+
+  // position deltas
+  double dx = target_cx - ai->st.opp->cx;
+  double dy = target_cy - ai->st.opp->cy;
+  double dist = hypot(dx, dy);
+  return dist;
+}
+
+void compute_goal_center1(int side, double *gcx, double *gcy) {
+  // left goal center is: (0, sy/2)
+  // right goal center is: (sx, sy/2)
+
+  if (side == 0) {
+    // left side, so opponent goal is right
+    *gcx = sx; // right edge
+    *gcy = sy / 2.0;
+  } else {
+    // right side, so opponent goal is left
+    *gcx = 0.0; // left edge
+    *gcy = sy / 2.0;
+  }
+}
+
+#define DELTA_TO_OPP 300
+void compute_target_pos_general(struct RoboAI *ai, double gx, double gy,
+                                double delta, double *target_cx,
+                                double *target_cy) {
+  // use ball's position as target for simplicity
+  if (!ai || !ai->st.self || !ai->st.ball || !target_cx || !target_cy)
+    return;
+
+  double bx = ai->st.ball->cx;
+  double by = ai->st.ball->cy;
+
+  double dx = bx - gx;
+  double dy = by - gy;
+  double L = sqrt(dx * dx + dy * dy);
+
+  double x = delta * fabs(dx) / L;
+  ;
+  double y = delta * fabs(dy) / L;
+
+  // determine target_cy based on ball position relative to goal
+  if (by < gy) {
+    // ball is at top left quarter
+    *target_cy = by - y;
+  } else {
+    // ball is at bottom left quarter
+    *target_cy = by + y;
+  }
+
+  // determine target_cx based on goal position
+  if (gx < bx) {
+    // goal is at left
+    *target_cx = bx + x;
+  } else {
+    // goal is at right
+    *target_cx = bx - x;
+  }
+}
+
+// defense mode helper
+void compute_defense_target(struct RoboAI *ai, double *target_cx,
+                            double *target_cy) {
+  compute_target_pos_general(ai, ai->st.opp->cx, ai->st.opp->cy, DELTA_TO_OPP,
+                             target_cx, target_cy);
+}
+
+// escape mode helper
+double compute_target_x(double target_y, double line_slope,
+                        double line_intercept) {
+  // line equation: y = mx + b  --> x = (y - b) / m
+  if (fabs(line_slope) < 1e-6) {
+    // vertical line case, slope is infinite
+    return NAN; // or some error value
+  }
+  return (target_y - line_intercept) / line_slope;
+}
+
+void compute_escape_rotate_target(struct RoboAI *ai, double *target_x,
+                                  double *target_y) {
+  double line_slope = 0.0;
+  double line_intercept = 0.0;
+  double x1 = ai->st.self->cx;
+  ;
+  double y1 = ai->st.self->cy;
+  double x2, y2 = 0.0;
+  // get 自己球门位置
+  compute_goal_center1(1 - ai->st.side, &x2, &y2);
+
+  // 暂时不处理slope == infinite的情况 --> vertical line
+  // 不太可能有这种情况出现
+
+  line_slope = (y2 - y1) / (x2 - x1);
+  line_intercept = y1 - line_slope * x1;
+
+  double temp_x = compute_target_x(0, line_slope, line_intercept);
+  if (temp_x > 0 && temp_x < sx) {
+    *target_x = temp_x;
+    *target_y = 0;
+  } else {
+    temp_x = compute_target_x(sy, line_slope, line_intercept);
+    *target_x = temp_x;
+    *target_y = sy;
+  }
+}
+
+// edge attack mode helper
+// 上下左右 0123
+int compute_ball_nearest_edge(struct RoboAI *ai, double *edge_x,
+                              double *edge_y) {
+  if (!ai || !ai->st.ball)
+    return -1;
+
+  double bx = ai->st.ball->cx;
+  double by = ai->st.ball->cy;
+
+  double dist_up = by;                 // distance to top (y=0)
+  double dist_down = (double)sy - by;  // distance to bottom (y=sy)
+  double dist_left = bx;               // distance to left (x=0)
+  double dist_right = (double)sx - bx; // distance to right (x=sx)
+
+  double min_dist = dist_up;
+  int edge_id = 0; // 0: up
+
+  if (dist_down < min_dist) {
+    min_dist = dist_down;
+    edge_id = 1;
+  }
+  if (dist_left < min_dist) {
+    min_dist = dist_left;
+    edge_id = 2;
+  }
+  if (dist_right < min_dist) {
+    min_dist = dist_right;
+    edge_id = 3;
+  }
+
+  if (edge_x) {
+    if (edge_id == 2)
+      *edge_x = 0.0; // left edge
+    else if (edge_id == 3)
+      *edge_x = (double)sx; // right edge
+    else
+      *edge_x = bx; // same x as ball
+  }
+
+  if (edge_y) {
+    if (edge_id == 0)
+      *edge_y = 0.0; // top edge
+    else if (edge_id == 1)
+      *edge_y = (double)sy; // bottom edge
+    else
+      *edge_y = by; // same y as ball
+  }
+
+  return edge_id;
+}
+
+
+// checker for soccer behavior
+int check_soccer_state_behavior(struct RoboAI *ai, double *smx,
+                                       double *smy) {
+  // determine whether the ai should escape, defend, or attack (normal attack or
+  // edge attack) return 1 for escape, 2 for normal attack, 3 for edge attack, 4
+  // for defend
+
+  if (rotate_flag > 0 || check_anything_lost(ai)) {
+    return BEHAVIOR_NOT_CHANGE; // still rotating, do not change behavior
+  }
+
+  bool escape = need_escape(ai, smx, smy);
+  if (escape) {
+    return ESCAPE_BEHAVIOR; // escape
+  }
+
+  bool defend = need_defense(ai);
+  if (defend) {
+    return DEFEND_BEHAVIOR; // defend
+  }
+
+  bool edge_attack = need_edge_play(ai);
+  if (edge_attack) {
+    return EDGE_ATTACK_BEHAVIOR; // edge attack
+  }
+
+  // now don't consider edge attack, only do normal attack
+  return NORMAL_ATTACK_BEHAVIOR; // normal attack
+}
+
+void soccer_mode(struct RoboAI *ai, double *smx, double *smy) {
+  int state = ai->st.state;
+
+  if (state >= 10 && state < 20) {
+    fprintf(stderr, "Escaping!\n");
+    soccer_escape_mode(ai, smx, smy);
+  } else if (state >= 40 && state < 50) {
+    fprintf(stderr, "Defending goal\n");
+    soccer_defense_mode(ai, smx, smy);
+  } else if (state >= 20 && state < 30) {
+    fprintf(stderr, "Normal attack mode\n");
+    soccer_normal_play_mode(ai, smx, smy);
+  } else if (state >= 30 && state < 40) {
+    fprintf(stderr, "Edge attack mode\n");
+    soccer_edge_play_mode(ai, smx, smy);
+    return;
+  } else {
+    fprintf(stderr, "In SOCCER test mode, current state: %d\n", state);
+    ai->st.state = 20; // set to normal play mode
+    soccer_normal_play_mode(ai, smx, smy);
+  }
+
+  // soccer_normal_play_mode(ai, smx, smy);
+  // soccer_defense_mode(ai, smx, smy);
+  // soccer_escape_mode(ai, smx, smy);
+}
+
+/****************************
+* soccer sub-behavior modes
+****************************/
+// normal play mode
 void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
                              double *stored_smy) {
   int state = ai->st.state;
@@ -2128,157 +2418,6 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
   }
 }
 
-double compute_opp_angle_diff_to_target(struct RoboAI *ai, double target_x,
-                                        double target_y) {
-  if (!ai || !ai->st.opp)
-    return 0.0;
-
-  // position deltas
-  double dx = target_x - ai->st.opp->cx;
-  double dy = target_y - ai->st.opp->cy;
-  double ang_to_target = atan2(dy, dx);
-
-  double hdx = ai->st.odx;
-  double hdy = ai->st.ody;
-
-  double ang_opp = atan2(hdy, hdx);
-
-  // angle error
-  double ang_err = ang_to_target - ang_opp;
-
-  // normalized to [-pi/2, pi/2]
-  // 我们只关心opp direction vector 所在直线和opp-target vector 的夹角
-  // first normalize to [-pi, pi]
-  while (ang_err > M_PI)
-    ang_err -= 2 * M_PI;
-  while (ang_err < -M_PI)
-    ang_err += 2 * M_PI;
-  // reduce to [-pi/2, pi/2] because direction and its opposite represent the
-  // same line
-  if (ang_err > M_PI / 2)
-    ang_err -= M_PI;
-  else if (ang_err < -M_PI / 2)
-    ang_err += M_PI;
-  // convert to degrees
-  return ang_err * (180.0 / M_PI);
-}
-
-double compute_opp_distance_to_target(struct RoboAI *ai, double target_cx,
-                                      double target_cy) {
-  if (!ai || !ai->st.opp)
-    return NAN;
-
-  // position deltas
-  double dx = target_cx - ai->st.opp->cx;
-  double dy = target_cy - ai->st.opp->cy;
-  double dist = hypot(dx, dy);
-  return dist;
-}
-
-void compute_goal_center1(int side, double *gcx, double *gcy) {
-  // left goal center is: (0, sy/2)
-  // right goal center is: (sx, sy/2)
-
-  if (side == 0) {
-    // left side, so opponent goal is right
-    *gcx = sx; // right edge
-    *gcy = sy / 2.0;
-  } else {
-    // right side, so opponent goal is left
-    *gcx = 0.0; // left edge
-    *gcy = sy / 2.0;
-  }
-}
-
-#define DEFENSE_THRESHOLD 300
-#define OPP_FACE_THRESH_DEG 45
-// 暂时不做更精准的判断
-// 这里其实可以做更精准的判断
-bool need_defense(struct RoboAI *ai) {
-  // opp 离球很近
-  double opp_ball_dist =
-      compute_opp_distance_to_target(ai, ai->st.ball->cx, ai->st.ball->cy);
-  // opp 朝球的方向对齐
-  double opp_ball_angle =
-      compute_opp_angle_diff_to_target(ai, ai->st.ball->cx, ai->st.ball->cy);
-  // opp 朝向我方球门的方向对齐
-  double gx, gy;
-  compute_goal_center1(1 - ai->st.side, &gx, &gy);
-  double opp_goal_angle = compute_opp_angle_diff_to_target(ai, gx, gy);
-  return fabs(opp_ball_dist) < DEFENSE_THRESHOLD &&
-         fabs(opp_ball_angle) < OPP_FACE_THRESH_DEG &&
-         fabs(opp_goal_angle) < OPP_FACE_THRESH_DEG;
-}
-
-#define ESCAPE_THRESHOLD 300
-#define ESCAPE_ANGLE_THRESH_DEG 60
-// 暂时不做更精准的判断
-// 这里其实可以做更精准的判断 --> OPP 的 blob里面的边框方向
-bool need_escape(struct RoboAI *ai, double *smx, double *smy) {
-  double dist =
-      compute_opp_distance_to_target(ai, ai->st.self->cx, ai->st.self->cy);
-  double angle = compute_angle_error_to_target(ai, *smx, *smy, ai->st.opp->cx,
-                                               ai->st.opp->cy);
-  return fabs(dist) < ESCAPE_THRESHOLD && fabs(angle) < ESCAPE_ANGLE_THRESH_DEG;
-}
-
-// ball very close to side edges
-#define EDGE_PLAY_THRESHOLD 150
-bool need_edge_play(struct RoboAI *ai) {
-  // close to top edge, x is close to 0
-  // close to bottom edge, x is close to sy
-  return (ai->st.ball->cy < EDGE_PLAY_THRESHOLD ||
-          (sy - ai->st.ball->cy) < EDGE_PLAY_THRESHOLD);
-}
-
-/////////////////////////////////////
-/// defense mode
-/// helper
-#define DELTA_TO_OPP 300
-
-void compute_defense_target(struct RoboAI *ai, double *target_cx,
-                            double *target_cy) {
-  compute_target_pos_general(ai, ai->st.opp->cx, ai->st.opp->cy, DELTA_TO_OPP,
-                             target_cx, target_cy);
-}
-
-void compute_target_pos_general(struct RoboAI *ai, double gx, double gy,
-                                double delta, double *target_cx,
-                                double *target_cy) {
-  // use ball's position as target for simplicity
-  if (!ai || !ai->st.self || !ai->st.ball || !target_cx || !target_cy)
-    return;
-
-  double bx = ai->st.ball->cx;
-  double by = ai->st.ball->cy;
-
-  double dx = bx - gx;
-  double dy = by - gy;
-  double L = sqrt(dx * dx + dy * dy);
-
-  double x = delta * fabs(dx) / L;
-  ;
-  double y = delta * fabs(dy) / L;
-
-  // determine target_cy based on ball position relative to goal
-  if (by < gy) {
-    // ball is at top left quarter
-    *target_cy = by - y;
-  } else {
-    // ball is at bottom left quarter
-    *target_cy = by + y;
-  }
-
-  // determine target_cx based on goal position
-  if (gx < bx) {
-    // goal is at left
-    *target_cx = bx + x;
-  } else {
-    // goal is at right
-    *target_cx = bx - x;
-  }
-}
-
 void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy) {
   int state = ai->st.state;
   fprintf(stderr, "In SOCCER[DEFENSE] mode, current state: %d\n", state);
@@ -2381,44 +2520,6 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy) {
   }
 }
 
-double compute_target_x(double target_y, double line_slope,
-                        double line_intercept) {
-  // line equation: y = mx + b  --> x = (y - b) / m
-  if (fabs(line_slope) < 1e-6) {
-    // vertical line case, slope is infinite
-    return NAN; // or some error value
-  }
-  return (target_y - line_intercept) / line_slope;
-}
-
-void compute_escape_rotate_target(struct RoboAI *ai, double *target_x,
-                                  double *target_y) {
-  double line_slope = 0.0;
-  double line_intercept = 0.0;
-  double x1 = ai->st.self->cx;
-  ;
-  double y1 = ai->st.self->cy;
-  double x2, y2 = 0.0;
-  // get 自己球门位置
-  compute_goal_center1(1 - ai->st.side, &x2, &y2);
-
-  // 暂时不处理slope == infinite的情况 --> vertical line
-  // 不太可能有这种情况出现
-
-  line_slope = (y2 - y1) / (x2 - x1);
-  line_intercept = y1 - line_slope * x1;
-
-  double temp_x = compute_target_x(0, line_slope, line_intercept);
-  if (temp_x > 0 && temp_x < sx) {
-    *target_x = temp_x;
-    *target_y = 0;
-  } else {
-    temp_x = compute_target_x(sy, line_slope, line_intercept);
-    *target_x = temp_x;
-    *target_y = sy;
-  }
-}
-
 void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy) {
   int state = ai->st.state;
   fprintf(stderr, "In SOCCER[ESCAPE] mode, current state: %d\n", state);
@@ -2504,85 +2605,6 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy) {
     break;
   }
   }
-}
-
-void rotate_left_kick(struct RoboAI *ai) {
-  BT_timed_motor_port_start(RIGHT_MOTOR, 70, 50, 400, 50);
-  BT_timed_motor_port_start(LEFT_MOTOR, 70, 50, 400, 50);
-  usleep(600 * 1000); // wait for 600 ms
-  BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 500, 100);
-  BT_timed_motor_port_start(LEFT_MOTOR, -100, 100, 500, 100);
-  usleep(350 * 1000); // wait for 350 ms
-  BT_timed_motor_port_start(KICK_MOTOR, 100, 0, 100, 100);
-  usleep(600 * 1000); // wait for 600 ms
-
-  BT_timed_motor_port_start(KICK_MOTOR, -80, 100, 200, 100);
-  usleep(300 * 1000); // wait for 250 ms
-}
-
-void rotate_right_kick(struct RoboAI *ai) {
-  BT_timed_motor_port_start(RIGHT_MOTOR, 100, 50, 600, 50);
-  BT_timed_motor_port_start(LEFT_MOTOR, 100, 50, 600, 50);
-  usleep(700 * 1000); // wait for 600 ms
-  BT_timed_motor_port_start(RIGHT_MOTOR, -100, 100, 500, 100);
-  BT_timed_motor_port_start(LEFT_MOTOR, 100, 100, 500, 100);
-  usleep(350 * 1000); // wait for 350 ms
-  BT_timed_motor_port_start(KICK_MOTOR, 100, 0, 100, 100);
-  usleep(600 * 1000); // wait for 600 ms
-
-  BT_timed_motor_port_start(KICK_MOTOR, -80, 100, 200, 100);
-  usleep(300 * 1000); // wait for 250 ms
-}
-
-// 上下左右 0123
-int compute_ball_nearest_edge(struct RoboAI *ai, double *edge_x,
-                              double *edge_y) {
-  if (!ai || !ai->st.ball)
-    return -1;
-
-  double bx = ai->st.ball->cx;
-  double by = ai->st.ball->cy;
-
-  double dist_up = by;                 // distance to top (y=0)
-  double dist_down = (double)sy - by;  // distance to bottom (y=sy)
-  double dist_left = bx;               // distance to left (x=0)
-  double dist_right = (double)sx - bx; // distance to right (x=sx)
-
-  double min_dist = dist_up;
-  int edge_id = 0; // 0: up
-
-  if (dist_down < min_dist) {
-    min_dist = dist_down;
-    edge_id = 1;
-  }
-  if (dist_left < min_dist) {
-    min_dist = dist_left;
-    edge_id = 2;
-  }
-  if (dist_right < min_dist) {
-    min_dist = dist_right;
-    edge_id = 3;
-  }
-
-  if (edge_x) {
-    if (edge_id == 2)
-      *edge_x = 0.0; // left edge
-    else if (edge_id == 3)
-      *edge_x = (double)sx; // right edge
-    else
-      *edge_x = bx; // same x as ball
-  }
-
-  if (edge_y) {
-    if (edge_id == 0)
-      *edge_y = 0.0; // top edge
-    else if (edge_id == 1)
-      *edge_y = (double)sy; // bottom edge
-    else
-      *edge_y = by; // same y as ball
-  }
-
-  return edge_id;
 }
 
 #define DELTA_TO_TARGET 150
