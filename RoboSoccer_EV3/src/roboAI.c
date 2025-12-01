@@ -1270,7 +1270,7 @@ static void penalty_mode(struct RoboAI *ai, double *stored_smx,
                               &b->dy, &b->mx, &b->my);
       if (valid < 0) {
         fprintf(stderr, "Lost track of a blob, back to 101\n");
-        ai->st.state = 101;
+        ai->st.state = ST_PENALTY_ROTATE_TO_TARGET;
       }
     }
   }
@@ -1279,13 +1279,6 @@ static void penalty_mode(struct RoboAI *ai, double *stored_smx,
   // now only consider the main flow
   switch (state) {
   case ST_PENALTY_ROTATE_TO_TARGET:
-    // use to test drive straight (left & right motors power)
-    //  ai->st.state = ST_PENALTY_MOVE_TO_BALL; // redundant but explicit
-    // BT_drive(LEFT_MOTOR, RIGHT_MOTOR, (int) 30 *1.4, 30); // ensure stopped
-    // before rotating sleep(10); BT_motor_port_stop(LEFT_MOTOR, 0);
-    // BT_motor_port_stop(RIGHT_MOTOR, 0);
-    // ai->st.state = ST_PENALTY_DONE;
-    // break;
     {
 
       double target_cx, target_cy;
@@ -1293,8 +1286,6 @@ static void penalty_mode(struct RoboAI *ai, double *stored_smx,
 
       if (is_close_to_target(ai, target_cx, target_cy)) {
         ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
-        BT_motor_port_stop(LEFT_MOTOR, 0);
-        BT_motor_port_stop(RIGHT_MOTOR, 0);
         move_flag = -2;
         break;
       }
@@ -1312,8 +1303,6 @@ static void penalty_mode(struct RoboAI *ai, double *stored_smx,
       if (rotate_flag == -2) {
         fprintf(stderr, "Facing target achieved in PENALTY mode\n");
         ai->st.state = ST_PENALTY_MOVE_TO_TARGET;
-        BT_motor_port_stop(LEFT_MOTOR, 0);
-        BT_motor_port_stop(RIGHT_MOTOR, 0);
         rotate_flag = -1; // reset rotate flag
         correct_motion_vector(stored_smx, stored_smy, target_angle);
         target_angle = 0;
@@ -1332,38 +1321,31 @@ static void penalty_mode(struct RoboAI *ai, double *stored_smx,
       double de = 0, dd = 0;
       double d = compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd, tgt_cx,
                                         tgt_cy);
-      fprintf(stderr,
-              "change to Rotating to ball in PENALTY mode with distance "
-              "difference: %.2f\n",
-              d);
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
+      // fprintf(stderr,
+      //         "change to Rotating to ball in PENALTY mode with distance "
+      //         "difference: %.2f\n",
+      //         d);
       move_flag = -2;
       break;
     }
 
     if (!is_facing_target(ai, *stored_smx, *stored_smy, tgt_cx, tgt_cy)) {
       ai->st.state = ST_PENALTY_ROTATE_TO_TARGET;
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
       break;
     }
     if (!is_close_to_target(ai, tgt_cx, tgt_cy)) {
       fprintf(stderr, "Moving to target in PENALTY mode\n");
       move_to_blob(ai, *stored_smx, *stored_smy, tgt_cx, tgt_cy,
                    TARGET_TARGET_DIST);
-      // usleep(100*1000);
     } else if (is_close_to_target(ai, tgt_cx, tgt_cy)) {
       ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
       double de = 0, dd = 0;
       double d = compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd, tgt_cx,
                                         tgt_cy);
-      fprintf(stderr,
-              "change to Rotating to ball in PENALTY mode with distance "
-              "difference: %.2f\n",
-              d);
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
+      // fprintf(stderr,
+      //         "change to Rotating to ball in PENALTY mode with distance "
+      //         "difference: %.2f\n",
+      //         d);
       move_flag = -1; // reset rotate flag
     }
     break;
@@ -1390,8 +1372,6 @@ static void penalty_mode(struct RoboAI *ai, double *stored_smx,
     if (rotate_flag == -2) {
       fprintf(stderr, "Facing target achieved in PENALTY mode\n");
       ai->st.state = ST_PENALTY_MOVE_TO_BALL;
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
       rotate_flag = -1; // reset rotate flag
       correct_motion_vector(stored_smx, stored_smy, target_angle);
       target_angle = 0;
@@ -1413,26 +1393,13 @@ static void penalty_mode(struct RoboAI *ai, double *stored_smx,
       break;
     }
 
-    // if (!is_facing_target(ai, *stored_smx, *stored_smy, b_cx, b_cy)) {
-    //   ai->st.state = ST_PENALTY_ROTATE_TO_BALL;
-    //   BT_motor_port_stop(LEFT_MOTOR, 0);
-    //   BT_motor_port_stop(RIGHT_MOTOR, 0);
-    //   break;
-    // }
     if (!is_close_to_ball(ai, b_cx, b_cy)) {
       // fprintf(stderr, "Moving to ball in PENALTY mode\n");
       move_to_blob(ai, *stored_smx, *stored_smy, b_cx, b_cy, TARGET_BALL_DIST);
-      //*stored_smx = ai->st.smx;
-      // *stored_smy = ai->st.smy;
-      // 好像是motion vector 的错误导致角度计算又有问题.....
-      // 实在不行这里stored 不更新了，或者加noise handling！
-      //  usleep(100*1000); // avoid smx/smy being zero/错误计算
     } else if (is_close_to_ball(ai, b_cx, b_cy)) {
       ai->st.state = ST_PENALTY_DONE;
       // fprintf(stderr, "change to Aligning to goal in PENALTY mode with
       // distance difference: %.2f\n", compute_distance_error(ai));
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
       move_flag = -2; // reset move flag
     }
     break;
@@ -1445,10 +1412,6 @@ static void penalty_mode(struct RoboAI *ai, double *stored_smx,
   }
 
   case ST_PENALTY_DONE: {
-    // double dot_product = ai->st.sdx * (*stored_smx) + ai->st.sdy *
-    // (*stored_smy); fprintf(stderr," PENALTY DONE. self directive vector:
-    // (%.2f, %.2f), stored smx: (%.2f, %.2f), Final motion vector dot product:
-    // %.2f\n", ai->st.sdx, ai->st.sdy, *stored_smx, *stored_smy, dot_product);
     BT_motor_port_stop(LEFT_MOTOR, 0);
     BT_motor_port_stop(RIGHT_MOTOR, 0);
     break;
@@ -1605,8 +1568,8 @@ void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x,
             "Rotation to target blob completed. Target angle: %.2f, Rotated "
             "angle: %d\n",
             target_angle, rotating_angle);
-    BT_motor_port_stop(LEFT_MOTOR, 0);
-    BT_motor_port_stop(RIGHT_MOTOR, 0);
+    // BT_motor_port_stop(LEFT_MOTOR, 0);
+    // BT_motor_port_stop(RIGHT_MOTOR, 0);
     // reset and correct
     rotate_flag = -2; // reset flag
     rotating_angle = 0;
@@ -2125,27 +2088,27 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
     ai->st.state = ST_SOCCER_EDGE_ROTATE_TARGET;
     return;
   }
+
+  if (check_anything_lost(ai)) {
+    fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
+    BT_motor_port_stop(LEFT_MOTOR, 0);
+    BT_motor_port_stop(RIGHT_MOTOR, 0);
+    ai->st.state = ST_SOCCER_NORMAL_PLAY_DONE;
+    return;
+  }
+
   switch (state) {
   case ST_SOCCER_CHECK_BEHAVIOR:
     ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
     break;
 
   case ST_SOCCER_ROTATE_TO_TARGET: {
-    if (check_anything_lost(ai)) {
-      fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
-      ai->st.state = ST_SOCCER_NORMAL_PLAY_DONE;
-      break;
-    }
     double target_cx, target_cy;
     compute_target_position_soccer(ai, &target_cx, &target_cy);
 
     if (is_close_to_target(ai, target_cx, target_cy)) {
       fprintf(stderr, "Already reached target in SOCCER mode, stopping\n");
       ai->st.state = ST_SOCCER_ROTATE_TO_BALL;
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
       move_flag = -2;
       break;
     }
@@ -2165,8 +2128,6 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
     if (rotate_flag == -2) {
       fprintf(stderr, "Facing target achieved in SOCCER mode\n");
       ai->st.state = ST_SOCCER_MOVE_TO_TARGET;
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
       rotate_flag = -1; // reset rotate flag
       correct_motion_vector(stored_smx, stored_smy, target_angle);
       target_angle = 0;
@@ -2175,20 +2136,11 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
   }
 
   case ST_SOCCER_MOVE_TO_TARGET: {
-    if (check_anything_lost(ai)) {
-      fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
-      ai->st.state = ST_SOCCER_NORMAL_PLAY_DONE;
-      break;
-    }
     double target_cx, target_cy;
     compute_target_position_soccer(ai, &target_cx, &target_cy);
     if (is_close_to_target(ai, target_cx, target_cy)) {
       fprintf(stderr, "Already reached target in SOCCER mode, stopping\n");
       ai->st.state = ST_SOCCER_ROTATE_TO_BALL;
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
       move_flag = -2;
       break;
     }
@@ -2207,8 +2159,6 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
   case ST_SOCCER_ROTATE_TO_BALL: {
     if (check_anything_lost(ai)) {
       fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
       ai->st.state = ST_SOCCER_NORMAL_PLAY_DONE;
       break;
     }
@@ -2230,8 +2180,6 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
     if (rotate_flag == -2) {
       fprintf(stderr, "Facing target achieved in PENALTY mode\n");
       ai->st.state = ST_SOCCER_MOVE_TO_BALL;
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
       rotate_flag = -1; // reset rotate flag
       correct_motion_vector(stored_smx, stored_smy, target_angle);
       target_angle = 0;
@@ -2240,13 +2188,6 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
   }
 
   case ST_SOCCER_MOVE_TO_BALL: {
-    if (check_anything_lost(ai)) {
-      fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
-      ai->st.state = ST_SOCCER_NORMAL_PLAY_DONE;
-      break;
-    }
 
     if (is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
       fprintf(stderr, "Reached ball in SOCCER mode, kicking\n");
@@ -2269,13 +2210,6 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
     break;
   }
   case ST_SOCCER_KICK_BALL: {
-    //  if (check_anything_lost(ai)) {
-    //   fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
-    //   BT_motor_port_stop(LEFT_MOTOR, 0);
-    //   BT_motor_port_stop(RIGHT_MOTOR, 0);
-    //   ai->st.state = ST_SOCCER_NORMAL_PLAY_DONE;
-    //   break;
-    // }
     fprintf(stderr, "Kicking ball in SOCCER mode\n");
     kick_ball(ai);
     ai->st.state = ST_SOCCER_NORMAL_PLAY_DONE;
@@ -2477,6 +2411,15 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy) {
   }
 
   double target_cx, target_cy;
+
+  if (check_anything_lost(ai)) {
+    fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
+    BT_motor_port_stop(LEFT_MOTOR, 0);
+    BT_motor_port_stop(RIGHT_MOTOR, 0);
+    ai->st.state = ST_SOCCER_DEFEND_DONE;
+    return;
+  }
+
   compute_defense_target(ai, &target_cx, &target_cy);
 
   switch (state) {
@@ -2485,13 +2428,6 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy) {
     break;
 
   case ST_SOCCER_DEFEND_ROTATE: {
-    if (check_anything_lost(ai)) {
-      fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
-      ai->st.state = ST_SOCCER_DEFEND_DONE;
-      return;
-    }
 
     if (is_facing_target(ai, *smx, *smy, target_cx, target_cy) &&
         rotate_flag == -1) {
@@ -2504,8 +2440,6 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy) {
     if (rotate_flag == -2) {
       fprintf(stderr, "Facing target achieved in SOCCER mode\n");
       ai->st.state = ST_SOCCER_DEFEND_MOVE;
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
       rotate_flag = -1; // reset rotate flag
       correct_motion_vector(smx, smy, target_angle);
       target_angle = 0;
@@ -2514,13 +2448,6 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy) {
   }
 
   case ST_SOCCER_DEFEND_MOVE: {
-    if (check_anything_lost(ai)) {
-      fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
-      ai->st.state = ST_SOCCER_DEFEND_DONE;
-      return;
-    }
 
     if (is_close_to_target(ai, target_cx, target_cy)) {
       fprintf(stderr, "Reached defense target, holding position\n");
@@ -2622,23 +2549,20 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy) {
     return;
   }
 
+  if (check_anything_lost(ai)) {
+    fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
+    BT_motor_port_stop(LEFT_MOTOR, 0);
+    BT_motor_port_stop(RIGHT_MOTOR, 0);
+    ai->st.state = ST_SOCCER_ESCAPE_DONE;
+    return;
+  }
+
   switch (state) {
   case ST_SOCCER_CHECK_BEHAVIOR:
     ai->st.state = ST_SOCCER_ESCAPE_ROTATE;
     break;
 
   case ST_SOCCER_ESCAPE_ROTATE: {
-    // if (!need_escape(ai, smx, smy)) {
-    //   ai->st.state = ST_SOCCER_ESCAPE_DONE;
-    //   break;
-    // }
-    if (check_anything_lost(ai)) {
-      fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
-      ai->st.state = ST_SOCCER_ESCAPE_DONE;
-      return;
-    }
 
     double target_x, target_y;
     compute_escape_rotate_target(ai, &target_x, &target_y);
@@ -2654,8 +2578,6 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy) {
     if (rotate_flag == -2) {
       fprintf(stderr, "Facing target achieved in SOCCER mode\n");
       ai->st.state = ST_SOCCER_ESCAPE_MOVE;
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
       rotate_flag = -1; // reset rotate flag
       correct_motion_vector(smx, smy, target_angle);
       target_angle = 0;
@@ -2663,13 +2585,6 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy) {
     break;
   }
   case ST_SOCCER_ESCAPE_MOVE: {
-    if (check_anything_lost(ai)) {
-      fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
-      ai->st.state = ST_SOCCER_ESCAPE_DONE;
-      return;
-    }
 
     BT_drive(LEFT_MOTOR, RIGHT_MOTOR, -55, -50); // move backward
     sleep(1);                                    // move for 0.5 second
@@ -2830,8 +2745,6 @@ void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy) {
     }
     if (is_close_to_target(ai, target_cx, target_cy)) {
       ai->st.state = ST_SOCCER_EDGE_ROTATE_BALL;
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
       break;
     }
 
@@ -2845,8 +2758,6 @@ void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy) {
     if (rotate_flag == -2) {
       fprintf(stderr, "Facing target achieved in SOCCER EDGE mode\n");
       ai->st.state = ST_SOCCER_EDGE_MOVE_TARGET;
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
       rotate_flag = -1; // reset rotate flag
       correct_motion_vector(smx, smy, target_angle);
       target_angle = 0.0;
@@ -2907,8 +2818,6 @@ void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy) {
 
     if (rotate_flag == -2) {
       ai->st.state = ST_SOCCER_EDGE_MOVE_BALL;
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
       rotate_flag = -1; // reset rotate flag
       correct_motion_vector(smx, smy, target_angle);
       target_angle = 0;
