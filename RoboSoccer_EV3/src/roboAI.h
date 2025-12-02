@@ -27,8 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// Change this to match the ports your bots motors are connected to
-// TODOO: change it to the actual motor ports
+// Robot hardware configuration
 #define LEFT_MOTOR MOTOR_C
 #define RIGHT_MOTOR MOTOR_D
 #define KICK_MOTOR MOTOR_A
@@ -41,7 +40,6 @@
 #define NOISE_VAR                                                              \
   5.0 // Minimum amount of displacement considered NOT noise (in pixels).
 
-// TOSEE:
 // Penalty kick mode state definitions (100-199)
 #define ST_PENALTY_INIT 100             // Initial state
 #define ST_PENALTY_ROTATE_TO_TARGET 101 // Rotate to face the target
@@ -51,9 +49,9 @@
 #define ST_PENALTY_KICK_BALL 105        // Kick the ball
 #define ST_PENALTY_DONE 199             // Penalty kick done
 
+// Additional states for motion updates or empty states
 #define ST_MOTION_UPDATE1 110
 #define ST_MOTION_UPDATE2 111
-
 #define ST_PENALTY_EMPTY1 120
 #define ST_PENALTY_EMPTY2 121
 
@@ -73,37 +71,35 @@
 #define ST_SOCCER_DEFEND_GOAL 5     // Defend state - need a high priority
 
 // escape from opponent substates
-#define ST_SOCCER_ESCAPE_ROTATE 10
-#define ST_SOCCER_ESCAPE_MOVE 11
-#define ST_SOCCER_ESCAPE_DONE 12
-#define ST_SOCCER_ESCAPE_EMPTY 13
+#define ST_SOCCER_ESCAPE_ROTATE 20
+#define ST_SOCCER_ESCAPE_MOVE 21
+#define ST_SOCCER_ESCAPE_DONE 22
+#define ST_SOCCER_ESCAPE_EMPTY 23
 
 // normal play substates: if the ball is kickable
-#define ST_SOCCER_ROTATE_TO_TARGET 20
-#define ST_SOCCER_MOVE_TO_TARGET 21
-#define ST_SOCCER_ROTATE_TO_BALL 22
-#define ST_SOCCER_MOVE_TO_BALL 23
-#define ST_SOCCER_DRIBBLE_BALL 24    // to add
-#define ST_SOCCER_SWERVE_OBSTACLE 25 // to add
-#define ST_SOCCER_KICK_BALL 26
-#define ST_SOCCER_NORMAL_PLAY_EMPTY1 27
-#define ST_SOCCER_NORMAL_PLAY_EMPTY2 28
-#define ST_SOCCER_NORMAL_PLAY_DONE 29
+#define ST_SOCCER_ROTATE_TO_TARGET 30
+#define ST_SOCCER_MOVE_TO_TARGET 31
+#define ST_SOCCER_ROTATE_TO_BALL 32
+#define ST_SOCCER_MOVE_TO_BALL 33
+#define ST_SOCCER_KICK_BALL 34
+#define ST_SOCCER_NORMAL_PLAY_EMPTY1 37
+#define ST_SOCCER_NORMAL_PLAY_EMPTY2 38
+#define ST_SOCCER_NORMAL_PLAY_DONE 39
 
 // edge play substates: if the ball is near the edge of the field (exit edge
 // play when the ball is back to normal play area)
-#define ST_SOCCER_EDGE_ROTATE_TARGET 30
-#define ST_SOCCER_EDGE_MOVE_TARGET 31
-#define ST_SOCCER_EDGE_ROTATE_BALL 32
-#define ST_SOCCER_EDGE_MOVE_BALL 33
-#define ST_SOCCER_EDGE_KICK 34
-#define ST_SOCCER_EDGE_DONE 39
+#define ST_SOCCER_EDGE_ROTATE_TARGET 40
+#define ST_SOCCER_EDGE_MOVE_TARGET 41
+#define ST_SOCCER_EDGE_ROTATE_BALL 42
+#define ST_SOCCER_EDGE_MOVE_BALL 43
+#define ST_SOCCER_EDGE_KICK 44
+#define ST_SOCCER_EDGE_DONE 49
 
 // defend goal substates
-#define ST_SOCCER_DEFEND_ROTATE 40
-#define ST_SOCCER_DEFEND_MOVE 41
-#define ST_SOCCER_DEFEND_DONE 42
-#define ST_SOCCER_DEFEND_EMPTY 43
+#define ST_SOCCER_DEFEND_ROTATE 50
+#define ST_SOCCER_DEFEND_MOVE 51
+#define ST_SOCCER_DEFEND_EMPTY 52
+#define ST_SOCCER_DEFEND_DONE 59
 
 #define ST_SOCCER_DONE 99 // Soccer done
 
@@ -232,6 +228,7 @@ struct displayList *clearDP(struct displayList *head);
 void penalty_mode(struct RoboAI *ai, double *smx, double *smy);
 void chase_mode(struct RoboAI *ai, struct blob *blobs);
 void soccer_mode(struct RoboAI *ai, double *smx, double *smy);
+
 // soccer mode sub-behaviours
 void soccer_normal_play_mode(struct RoboAI *ai, double *smx, double *smy);
 void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy);
@@ -268,9 +265,11 @@ void compute_target_pos_general(struct RoboAI *ai, double gx, double gy,
                                 double *target_cy);
 void compute_goal_center(struct RoboAI *ai, double *gcx, double *gcy);
 void compute_goal_center1(int side, double *gcx, double *gcy);
+
 // penalty helper
 void compute_target_position(struct RoboAI *ai, double *target_cx,
                              double *target_cy);
+
 // soccer helper
 void compute_target_position_soccer(struct RoboAI *ai, double *target_cx,
                                     double *target_cy);
@@ -278,20 +277,24 @@ double compute_opp_angle_diff_to_target(struct RoboAI *ai, double target_x,
                                         double target_y);
 double compute_opp_distance_to_target(struct RoboAI *ai, double target_cx,
                                       double target_cy);
+
 // soccer defense helper
 void compute_defense_target(struct RoboAI *ai, double *target_cx,
                             double *target_cy);
+
 // soccer escape helper
 double compute_target_x(double target_y, double line_slope,
                         double line_intercept);
 void compute_escape_rotate_target(struct RoboAI *ai, double *target_x,
                                   double *target_y);
+
 // soccer edge helper
 int compute_ball_nearest_edge(struct RoboAI *ai, double *edge_x,
                               double *edge_y);
 
 // general utilities
 bool check_anything_lost(struct RoboAI *ai);
+
 // correction helper
 double correct_motion_vector(double *smx, double *smy, double rotate_angle_deg);
 
