@@ -6,39 +6,31 @@ stateDiagram
     direction TB
 
     %% Define States
-    state "Initial Setup (200)" as Init
-    state "Go forward and rotate towards ball (201)" as GoForwardRotate
-    %% state "Go straight towards ball (202)" as GoStraight
-    state "Swerve around obstacle (202)" as Swerve
-    %%state "At ball (204)" as AtBall
-    state "Lost track - move slightly (203)" as LostTrack
-    state "Border - angle away (204)" as Border
-    state "Kick (205)" as Kick
+    state "Chase init (200)" as ChaseInit
+    state "Chase rotate to ball (201)" as ChaseRotate
+    state "Chase move to ball (202)" as ChaseMove
+    state "Chase kick ball (203)" as ChaseKick
+    state "Chase done (299)" as ChaseDone
+
 
     %% Transitions
     [*] --> Init
-    Init --> GoForwardRotate: identify agents, go towards ball
-    
-    GoForwardRotate --> LostTrack : lost track
-    GoForwardRotate --> GoForwardRotate : not at ball
-    GoForwardRotate --> Swerve: obstacle detected in way
-    GoForwardRotate --> Border: approaching border
-    GoForwardRotate --> Kick: at ball
-    %%GoForwardRotate --> GoStraight : facing ball
-    
-    %%GoStraight --> LostTrack : lost track
-    %%GoStraight --> GoForwardRotate : ball moved
-    %%GoStraight --> Swerve : obstacle detected
-    %%GoStraight --> AtBall : arrived at ball
-    
-    Swerve --> LostTrack : lost track
-    Swerve --> Swerve : obstacle still detected
-    Swerve --> GoForwardRotate : obstacle no more
-    
-    Kick --> GoForwardRotate: ball moved
+    ChaseInit --> ChaseRotate: enter chase mode
 
-    LostTrack --> LostTrack: not found
-    LostTrack --> GoForwardRotate: found
+    ChaseRotate --> ChaseMove: facing ball achieved
+    ChaseRotate --> ChaseDone: lost
+    ChaseRotate --> ChaseRotate: not facing ball yet
 
-    Border --> Border: border collision
-    Border --> GoForwardRotate: no border collision
+    %% MOVE_TO_BALL transitions
+    ChaseMove --> ChaseRotate: not facing bal
+    ChaseMove --> ChaseKick: close to ball
+    ChaseMove --> ChaseDone: lost
+    ChaseMove --> ChaseMove: not yet at ball
+
+    %% KICK_BALL transitions
+    ChaseKick --> ChaseRotate: after kick
+    ChaseKick --> ChaseDone: lost
+
+    %% DONE transitions
+    ChaseDone --> ChaseRotate: ball found again, chase
+    ChaseDone --> ChaseDone: ball still missing, rotate
