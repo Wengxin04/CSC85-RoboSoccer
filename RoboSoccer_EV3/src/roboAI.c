@@ -59,6 +59,8 @@ int move_flag =
 
 int edge_flag = -1; // global variable to indicate edge attack status
 
+int backing_count = 0;
+
 ////////////////////////////////////
 // Denosing data
 ////////////////////////////////////
@@ -1434,6 +1436,23 @@ void rotate_right_kick(struct RoboAI *ai) {
   usleep(300 * 1000); // wait for 250 ms
 }
 
+void self_not_found_backing(struct RoboAI *ai) {
+  static int lost_count = 0;
+
+  if (!ai || backing_count > 3) return;
+  if (ai && !ai->st.self){
+    lost_count++;
+  }  
+  if (lost_count > 5){
+    BT_drive(LEFT_MOTOR, RIGHT_MOTOR, -55, -50); // move backward
+    sleep(1);                                    // move for 0.5 second
+    BT_motor_port_stop(LEFT_MOTOR, 0);
+    BT_motor_port_stop(RIGHT_MOTOR, 0);
+    backing_count++;
+  }
+
+}
+
 // TODOO: need functions to check status (i.e. facing ball, close to ball,
 // aligned to goal) at top of file
 
@@ -2389,11 +2408,13 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
       BT_motor_port_stop(LEFT_MOTOR, 0);
       BT_motor_port_stop(RIGHT_MOTOR, 0);
       ai->st.state = ST_SOCCER_NORMAL_PLAY_DONE;
+      self_not_found_backing(ai);
       usleep(500 * 1000); // wait for a second
       break;
     } else {
       fprintf(stderr, "Ball found after kick, resuming chase\n");
       ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
+      backing_count = 0;
       rotate_flag = -1; // reset rotate flag
     }
     usleep(10 * 1000); // wait for a second
@@ -2490,10 +2511,12 @@ void soccer_defense_mode(struct RoboAI *ai, double *smx, double *smy) {
       fprintf(stderr, "Ball lost after kick, rotating to search\n");
       BT_motor_port_stop(LEFT_MOTOR, 0);
       BT_motor_port_stop(RIGHT_MOTOR, 0);
+      self_not_found_backing(ai);
       usleep(500 * 1000); // wait for a second
       break;
     } else {
       fprintf(stderr, "Ball found after kick, resuming chase\n");
+      backing_count = 0;
       ai->st.state = ST_SOCCER_DEFEND_ROTATE;
     }
     usleep(10 * 1000); // wait for a second
@@ -2576,10 +2599,12 @@ void soccer_escape_mode(struct RoboAI *ai, double *smx, double *smy) {
       BT_motor_port_stop(LEFT_MOTOR, 0);
       BT_motor_port_stop(RIGHT_MOTOR, 0);
       ai->st.state = ST_SOCCER_ESCAPE_DONE;
+      self_not_found_backing(ai);
       usleep(500 * 1000); // wait for a second
       break;
     } else {
       fprintf(stderr, "Ball found after escape, resuming chase\n");
+      backing_count = 0;
       ai->st.state = ST_SOCCER_ESCAPE_ROTATE;
       rotate_flag = -1; // reset rotate flag
     }
@@ -2812,10 +2837,12 @@ void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy) {
       fprintf(stderr, "Ball lost after kick, rotating to search\n");
       BT_motor_port_stop(LEFT_MOTOR, 0);
       BT_motor_port_stop(RIGHT_MOTOR, 0);
+      self_not_found_backing(ai);
       usleep(500 * 1000); // wait for a second
       break;
     } else {
       fprintf(stderr, "Ball found after kick, resuming chase\n");
+      backing_count = 0;
       ai->st.state = ST_SOCCER_EDGE_ROTATE_TARGET;
     }
     usleep(10 * 1000); // wait for a second

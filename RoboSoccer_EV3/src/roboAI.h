@@ -250,6 +250,7 @@ void move_to_blob(struct RoboAI *ai, double smx, double smy, double t_cx,
 void kick_ball(struct RoboAI *ai);
 void rotate_right_kick(struct RoboAI *ai);
 void rotate_left_kick(struct RoboAI *ai);
+void self_not_found_backing(struct RoboAI *ai);
 
 // general computations functions
 double compute_angle_error_to_target(struct RoboAI *ai, double smx, double smy,
