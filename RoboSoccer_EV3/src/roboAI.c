@@ -1645,6 +1645,20 @@ void penalty_mode(struct RoboAI *ai, double *stored_smx, double *stored_smy) {
       }
     }
 
+    if (check_ball_self_lost(ai)) {
+    BT_motor_port_stop(LEFT_MOTOR, 0);
+    BT_motor_port_stop(RIGHT_MOTOR, 0);
+    ai->st.state = ST_PENALTY_DONE;
+    return;
+  }
+
+    if (check_ball_self_lost(ai)) {
+    BT_motor_port_stop(LEFT_MOTOR, 0);
+    BT_motor_port_stop(RIGHT_MOTOR, 0);
+    ai->st.state = ST_PENALTY_DONE;
+    return;
+  }
+
   switch (state) {
   case ST_PENALTY_ROTATE_TO_TARGET: {
 
@@ -1770,79 +1784,94 @@ void penalty_mode(struct RoboAI *ai, double *stored_smx, double *stored_smy) {
 }
 
 // called when in CHASE mode
-void chase_mode(struct RoboAI *ai, struct blob *blobs) {
+void chase_mode(struct RoboAI *ai, double *stored_smx, double *stored_smy) {
   // fprintf(stderr, "In CHASE mode, current state: %d\n", ai->st.state);
   int state = ai->st.state;
 
+  if (check_ball_self_lost(ai)) {
+    BT_motor_port_stop(LEFT_MOTOR, 0);
+    BT_motor_port_stop(RIGHT_MOTOR, 0);
+    ai->st.state = ST_CHASE_DONE;
+    return;
+  }
+
   switch (state) {
   case ST_CHASE_ROTATE_TO_BALL:
-    if (ai == NULL || ai->st.ball == NULL) {
-      fprintf(stderr, "Ball lost after kick, rotating to search\n");
-      ai->st.state = ST_CHASE_DONE;
-      usleep(500 * 1000);
+  {
+    // ball position
+    double ball_cx = ai->st.ball->cx;
+    double ball_cy = ai->st.ball->cy;
+    // double angle_error = compute_angle_error_to_target(ai, *stored_smx,
+    // *stored_smy, ball_cx, ball_cy);
+    if (is_facing_target(ai, *stored_smx, *stored_smy, ball_cx, ball_cy) &&
+        rotate_flag == -1) {
+      // rotate_flag = -1;
+      ai->st.state = ST_CHASE_MOVE_TO_BALL; // facing target
+                                              // target_angle = 0;
       break;
     }
 
-    if (!is_facing_target(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx,
-                          ai->st.ball->cy)) {
-      rotate_to_blob(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx,
-                     ai->st.ball->cy);
-    } else {
-      // fprintf(stderr, "Facing ball achieved in CHASE mode\n");
-      ai->st.state = ST_CHASE_MOVE_TO_BALL;
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
+    // non-blocking rotate to target
+    rotate_to_blob(ai, *stored_smx, *stored_smy, ball_cx, ball_cy);
+
+    if (rotate_flag == -2) {
+      // fprintf(stderr, "Facing ball achieved in PENALTY mode\n");
+      ai->st.state = ST_CHASE_MOVE_TO_BALL:
+      rotate_flag = -1; // reset rotate flag
+      correct_motion_vector(stored_smx, stored_smy, target_angle);
+      target_angle = 0;
     }
     break;
+  }
 
   case ST_CHASE_MOVE_TO_BALL:
-    if (ai == NULL || ai->st.ball == NULL) {
-      fprintf(stderr, "Ball lost after kick, rotating to search\n");
-      ai->st.state = ST_CHASE_DONE;
-      usleep(500 * 1000);
-      break;
-    }
-    if (!is_facing_target(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx,
-                          ai->st.ball->cy)) {
-      ai->st.state = ST_CHASE_ROTATE_TO_BALL;
-      BT_motor_port_stop(LEFT_MOTOR, 0);
-      BT_motor_port_stop(RIGHT_MOTOR, 0);
-      break;
-    } else if (!is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
-      move_to_blob(ai, ai->st.smx, ai->st.smy, ai->st.ball->cx, ai->st.ball->cy,
-                   TARGET_BALL_DIST);
-    } else if (is_close_to_ball(ai, ai->st.ball->cx, ai->st.ball->cy)) {
+  {
+    // ball position
+    double b_cx = ai->st.ball->cx;
+    double b_cy = ai->st.ball->cy;
+
+    if (is_close_to_ball(ai, b_cx, b_cy)) {
       ai->st.state = ST_CHASE_KICK_BALL;
       BT_motor_port_stop(LEFT_MOTOR, 0);
       BT_motor_port_stop(RIGHT_MOTOR, 0);
-      move_flag = -2; // reset move flag
-    }
-    break;
-
-  case ST_CHASE_KICK_BALL:
-    if (ai == NULL || ai->st.ball == NULL) {
-      fprintf(stderr, "Ball lost after kick, rotating to search\n");
-      ai->st.state = ST_CHASE_DONE;
-      usleep(500 * 1000);
       break;
     }
 
-    kick_ball(ai);
-    ai->st.state = ST_CHASE_ROTATE_TO_BALL;
+    if (!is_facing_target(ai, *stored_smx, *stored_smy, b_cx, b_cy)) {
+      ai->st.state = ST_CHASE_ROTATE_TO_BALL;
+      move_flag = -2;
+      break;
+    }
+
+    move_to_blob(ai, *stored_smx, *stored_smy, b_cx, b_cy, TARGET_BALL_DIST);
     break;
+  }  
+
+  case ST_CHASE_KICK_BALL:
+  {
+    kick_ball(ai);
+    ai->st.state = ST_CHASE_DONE;
+    break;
+  }
 
   case ST_CHASE_DONE:
-    if (ai == NULL || ai->st.ball == NULL) {
+    {
+    if (check_ball_self_lost(ai)) {
       fprintf(stderr, "Ball lost after kick, rotating to search\n");
-      ai->st.state = ST_CHASE_DONE;
-      usleep(500 * 1000);
+      BT_motor_port_stop(LEFT_MOTOR, 0);
+      BT_motor_port_stop(RIGHT_MOTOR, 0);
+      self_not_found_backing(ai);
+      usleep(500 * 1000); // wait for a second
       break;
     } else {
       fprintf(stderr, "Ball found after kick, resuming chase\n");
       ai->st.state = ST_CHASE_ROTATE_TO_BALL;
+      backing_count = 0;
+      rotate_flag = -1; // reset rotate flag
     }
     usleep(10 * 1000);
     break;
+  }
 
   default:
     fprintf(stderr, "Unknown CHASE state: %d\n", state);

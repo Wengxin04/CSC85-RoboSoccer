@@ -223,7 +223,7 @@ struct displayList *clearDP(struct displayList *head);
 
 // AI main modes
 void penalty_mode(struct RoboAI *ai, double *smx, double *smy);
-void chase_mode(struct RoboAI *ai, struct blob *blobs);
+void chase_mode(struct RoboAI *ai, double *smx, double *smy);
 void soccer_mode(struct RoboAI *ai, double *smx, double *smy);
 
 // soccer mode sub-behaviours
