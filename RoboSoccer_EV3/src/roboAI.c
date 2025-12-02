@@ -959,8 +959,8 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state) {
     deal with state transitions and with calling the appropriate function based
     on what the bot is supposed to be doing.
     *****************************************************************************/
-    // fprintf(stderr, "Just trackin with state: %d!\n",
-    //         ai->st.state);
+    fprintf(stderr, "Just trackin with state: %d!\n",
+         ai->st.state);
     track_agents(ai, blobs);
 
     // get current state and call appropriate function
@@ -971,7 +971,7 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state) {
     } else if (state >= 100 && state < 200) {
       penalty_mode(ai, &stored_smx, &stored_smy);
     } else if (state >= 200 && state < 300) {
-      chase_mode(ai, blobs);
+      chase_mode(ai, &stored_smx, &stored_smy);
     } else {
       fprintf(stderr, "Unknown AI state: %d\n", state);
     }
@@ -1003,15 +1003,15 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state) {
 // Tuning parameters
 enum {
   FACE_THRESH_DEG = 20,        // degrees to consider "facing" target
-  TARGET_BALL_DIST = 200,      // pixels to consider "close" to ball
-  TARGET_TARGET_DIST = 80,     // pixels to consider "close" to target
+  TARGET_BALL_DIST = 120,      // pixels to consider "close" to ball
+  TARGET_TARGET_DIST = 100,     // pixels to consider "close" to target
   DEFENSE_THRESHOLD = 300,     // pixels for opp to ball to consider defense
   OPP_FACE_THRESH_DEG = 45,    // degrees for opp to ball/goal to consider defense
   ESCAPE_THRESHOLD = 150,      // pixels for opp to self to consider escape
   ESCAPE_ANGLE_THRESH_DEG = 60, // degrees for opp to self to consider escape
   EDGE_PLAY_THRESHOLD_Y = 150,  // pixels to consider close to side edges
-  EDGE_PLAY_THRESHOLD_X = 150,  // pixels to consider close to top/bottom edges
-  EDGE_DELTA_GOAL = 200,       // pixels to consider close to goal when doing edge play
+  EDGE_PLAY_THRESHOLD_X = 100,  // pixels to consider close to top/bottom edges
+  EDGE_DELTA_GOAL = 200,       // pixels to consider cloese to goal when doing edge play
   DELTA_TO_TARGET = 150,      // pixels to consider "close" to target position
   DELTA_TO_OPP = 300,         // pixels to consider "close" to opponent
   TARGET_DEFENSE_DIST = 200,   // pixels to consider "close" to defense position
@@ -1094,7 +1094,7 @@ void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x,
   double angle_delta = 0.0;
   static double prev_ang_err = 0.0;
   static double prev_5_err_ang[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
-  static double prev_speed = 25.0;
+  static double prev_speed = 40.0;
   int g_rate = 0;
 
   if (rotate_flag == -1) {
@@ -1127,11 +1127,11 @@ void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x,
     angle_delta += 360.0;
 
   bool rotate_limit = fabs(rotating_angle) > 200.0;
-  bool left_done = (target_angle < 0) && (angle_delta >= -7.0);
-  bool right_done = (target_angle > 0) && (angle_delta <= 7.0);
+  bool left_done = (target_angle < 0) && (angle_delta >= -5.0);
+  bool right_done = (target_angle > 0) && (angle_delta <= 5.0);
 
   // finished rotation
-  if (left_done || right_done || rotate_limit) { // within 7 degrees
+  if (left_done || right_done || rotate_limit) { // within 5 degrees
     // stop
     // fprintf(stderr,
     //         "Rotation to target blob completed. Target angle: %.2f, Rotated "
@@ -1166,7 +1166,7 @@ void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x,
   }
 
   // turn PID control for angle
-  const double Kp_ang = 0.8;
+  const double Kp_ang = 0.7;
   const double Kd_ang = 2.5;
   const double Ki_ang = 0.1;
 
@@ -1364,13 +1364,14 @@ void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x,
 // kick the ball (blocking function)
 void kick_ball(struct RoboAI *ai) {
   // rush forward a bit
-  BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 1000, 100);
-  BT_timed_motor_port_start(LEFT_MOTOR, 100, 100, 1000, 100);
+  fprintf(stderr, "Kicking the ball!\n");
+  BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 800, 100);
+  BT_timed_motor_port_start(LEFT_MOTOR, 100, 100, 800, 100);
   usleep(300 * 1000);
   // kick
   BT_timed_motor_port_start(KICK_MOTOR, 100, 100, 200, 100);
   usleep(800 * 1000);
-  BT_timed_motor_port_start(KICK_MOTOR, -80, 100, 200, 100);
+  BT_timed_motor_port_start(KICK_MOTOR, -100, 100, 200, 100);
   usleep(500 * 1000);
 }
 
@@ -1378,9 +1379,9 @@ void kick_ball(struct RoboAI *ai) {
 // used in edge play to get ball out of corner
 void rotate_left_kick(struct RoboAI *ai) {
   // rush forward a bit
-  BT_timed_motor_port_start(RIGHT_MOTOR, 70, 50, 400, 50);
-  BT_timed_motor_port_start(LEFT_MOTOR, 70, 50, 400, 50);
-  usleep(600 * 1000);
+  BT_timed_motor_port_start(RIGHT_MOTOR, 70, 50, 800, 50);
+  BT_timed_motor_port_start(LEFT_MOTOR, 70, 50, 800, 50);
+  usleep(500 * 1000);
   // rotate left
   BT_timed_motor_port_start(RIGHT_MOTOR, 100, 100, 500, 100);
   BT_timed_motor_port_start(LEFT_MOTOR, -100, 100, 500, 100);
@@ -1396,9 +1397,9 @@ void rotate_left_kick(struct RoboAI *ai) {
 // used in edge play to get ball out of corner
 void rotate_right_kick(struct RoboAI *ai) {
   // rush forward a bit
-  BT_timed_motor_port_start(RIGHT_MOTOR, 100, 50, 600, 50);
-  BT_timed_motor_port_start(LEFT_MOTOR, 100, 50, 600, 50);
-  usleep(700 * 1000);
+  BT_timed_motor_port_start(RIGHT_MOTOR, 100, 50, 800, 50);
+  BT_timed_motor_port_start(LEFT_MOTOR, 100, 50, 800, 50);
+  usleep(500 * 1000);
   // rotate right
   BT_timed_motor_port_start(RIGHT_MOTOR, -100, 100, 500, 100);
   BT_timed_motor_port_start(LEFT_MOTOR, 100, 100, 500, 100);
@@ -1415,6 +1416,7 @@ void self_not_found_backing(struct RoboAI *ai) {
 
   if (!ai || backing_count > 3) return;
   if (ai && !ai->st.self){
+    fprintf(stderr, "Self lost! backing count %d and lost count %d\n", backing_count, lost_count);
     lost_count++;
   }  
   if (lost_count > 5){
@@ -1703,7 +1705,7 @@ void penalty_mode(struct RoboAI *ai, double *stored_smx, double *stored_smy) {
     }
 
     move_to_blob(ai, *stored_smx, *stored_smy, tgt_cx, tgt_cy,
-                 TARGET_TARGET_DIST);
+                 TARGET_TARGET_DIST-20);
     break;
   }
 
@@ -1752,7 +1754,7 @@ void penalty_mode(struct RoboAI *ai, double *stored_smx, double *stored_smy) {
       break;
     }
 
-    move_to_blob(ai, *stored_smx, *stored_smy, b_cx, b_cy, TARGET_BALL_DIST);
+    move_to_blob(ai, *stored_smx, *stored_smy, b_cx, b_cy, TARGET_BALL_DIST-20);
     break;
   }
 
@@ -1809,7 +1811,7 @@ void chase_mode(struct RoboAI *ai, double *stored_smx, double *stored_smy) {
 
     if (rotate_flag == -2) {
       // fprintf(stderr, "Facing ball achieved in PENALTY mode\n");
-      ai->st.state = ST_CHASE_MOVE_TO_BALL:
+      ai->st.state = ST_CHASE_MOVE_TO_BALL;
       rotate_flag = -1; // reset rotate flag
       correct_motion_vector(stored_smx, stored_smy, target_angle);
       target_angle = 0;
@@ -2346,6 +2348,8 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
   }
   case ST_SOCCER_KICK_BALL: {
     // fprintf(stderr, "Kicking ball in SOCCER mode\n");
+    BT_motor_port_stop(LEFT_MOTOR, 0);
+    BT_motor_port_stop(RIGHT_MOTOR, 0);
     kick_ball(ai);
     ai->st.state = ST_SOCCER_NORMAL_PLAY_DONE;
     break;
@@ -2704,7 +2708,7 @@ void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy) {
       move_flag = -2;
       break;
     }
-    move_to_blob(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy, 30);
+    move_to_blob(ai, *smx, *smy, ai->st.ball->cx, ai->st.ball->cy, 0);
     break;
   }
 
@@ -2712,6 +2716,8 @@ void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy) {
     double goal_x, goal_y;
     double ball_x = ai->st.ball->cx;
     double ball_y = ai->st.ball->cy;
+    BT_motor_port_stop(LEFT_MOTOR, 0);
+    BT_motor_port_stop(RIGHT_MOTOR, 0);
     compute_goal_center(ai, &goal_x, &goal_y);
     int g_angle = 0, g_rate = 0;
     BT_read_gyro(GYRO_PORT, 1, &g_angle, &g_rate);
