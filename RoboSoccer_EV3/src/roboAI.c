@@ -2027,7 +2027,6 @@ void compute_escape_rotate_target(struct RoboAI *ai, double *target_x,
   double line_slope = 0.0;
   double line_intercept = 0.0;
   double x1 = ai->st.self->cx;
-  ;
   double y1 = ai->st.self->cy;
   double x2, y2 = 0.0;
   // get 自己球门位置
