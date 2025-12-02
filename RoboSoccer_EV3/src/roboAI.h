@@ -65,41 +65,38 @@
 // Soccer mode state definitions (0-99)
 #define ST_SOCCER_INIT 0            // Initial state
 #define ST_SOCCER_CHECK_BEHAVIOR 1  // Check what to do next
-#define ST_SOCCER_ESCAPE_FROM_OPP 2 // Escape from opponent
-#define ST_SOCCER_NORMAL_PLAY 3     // Normal play state
-#define ST_SOCCER_EDGE_PLAY 4       // Edge play state
-#define ST_SOCCER_DEFEND_GOAL 5     // Defend state - need a high priority
 
-// escape from opponent substates
-#define ST_SOCCER_ESCAPE_ROTATE 20
-#define ST_SOCCER_ESCAPE_MOVE 21
-#define ST_SOCCER_ESCAPE_DONE 22
-#define ST_SOCCER_ESCAPE_EMPTY 23
-
+// 4 behavior modes substates: normal play, edge play, defend, escape
 // normal play substates: if the ball is kickable
-#define ST_SOCCER_ROTATE_TO_TARGET 30
-#define ST_SOCCER_MOVE_TO_TARGET 31
-#define ST_SOCCER_ROTATE_TO_BALL 32
-#define ST_SOCCER_MOVE_TO_BALL 33
-#define ST_SOCCER_KICK_BALL 34
-#define ST_SOCCER_NORMAL_PLAY_EMPTY1 37
-#define ST_SOCCER_NORMAL_PLAY_EMPTY2 38
-#define ST_SOCCER_NORMAL_PLAY_DONE 39
+#define ST_SOCCER_ROTATE_TO_TARGET 10
+#define ST_SOCCER_MOVE_TO_TARGET 11
+#define ST_SOCCER_ROTATE_TO_BALL 12
+#define ST_SOCCER_MOVE_TO_BALL 13
+#define ST_SOCCER_KICK_BALL 14
+#define ST_SOCCER_NORMAL_PLAY_EMPTY1 17
+#define ST_SOCCER_NORMAL_PLAY_EMPTY2 18
+#define ST_SOCCER_NORMAL_PLAY_DONE 19
 
 // edge play substates: if the ball is near the edge of the field (exit edge
 // play when the ball is back to normal play area)
-#define ST_SOCCER_EDGE_ROTATE_TARGET 40
-#define ST_SOCCER_EDGE_MOVE_TARGET 41
-#define ST_SOCCER_EDGE_ROTATE_BALL 42
-#define ST_SOCCER_EDGE_MOVE_BALL 43
-#define ST_SOCCER_EDGE_KICK 44
-#define ST_SOCCER_EDGE_DONE 49
+#define ST_SOCCER_EDGE_ROTATE_TARGET 20
+#define ST_SOCCER_EDGE_MOVE_TARGET 21
+#define ST_SOCCER_EDGE_ROTATE_BALL 22
+#define ST_SOCCER_EDGE_MOVE_BALL 23
+#define ST_SOCCER_EDGE_KICK 24
+#define ST_SOCCER_EDGE_DONE 29
 
 // defend goal substates
-#define ST_SOCCER_DEFEND_ROTATE 50
-#define ST_SOCCER_DEFEND_MOVE 51
-#define ST_SOCCER_DEFEND_EMPTY 52
-#define ST_SOCCER_DEFEND_DONE 59
+#define ST_SOCCER_DEFEND_ROTATE 30
+#define ST_SOCCER_DEFEND_MOVE 31
+#define ST_SOCCER_DEFEND_EMPTY 32
+#define ST_SOCCER_DEFEND_DONE 39
+
+// escape from opponent substates
+#define ST_SOCCER_ESCAPE_ROTATE 40
+#define ST_SOCCER_ESCAPE_MOVE 41
+#define ST_SOCCER_ESCAPE_EMPTY 42
+#define ST_SOCCER_ESCAPE_DONE 49
 
 #define ST_SOCCER_DONE 99 // Soccer done
 

@@ -40,18 +40,6 @@
 
 #include <stdbool.h>
 
-// single definition (storage) for the field-corner variables declared extern in
-// roboAI.h Initialize to constant values (0.0). Populate from Mcorners at
-// runtime in setupAI.
-double tl_x = 0.0;
-double tl_y = 0.0;
-double tr_x = 0.0;
-double tr_y = 0.0;
-double bl_x = 0.0;
-double bl_y = 0.0;
-double br_x = 0.0;
-double br_y = 0.0;
-
 extern int sx; // Get access to the image size from the imageCapture module
 extern int sy;
 int laggy = 0;
@@ -739,20 +727,20 @@ int setupAI(int mode, int own_col, struct RoboAI *ai) {
   switch (mode) {
   case AI_SOCCER:
     fprintf(stderr, "Standard Robo-Soccer mode requested\n");
-    ai->st.state = 0; // <-- Set AI initial state to 0
+    ai->st.state = ST_SOCCER_INIT;
     break;
   case AI_PENALTY:
     fprintf(stderr, "Penalty mode! let's kick it!\n");
-    ai->st.state = 100; // <-- Set AI initial state to 100
+    ai->st.state = ST_PENALTY_INIT;
     break;
   case AI_CHASE:
     fprintf(stderr, "Chasing the ball...\n");
-    ai->st.state = 200; // <-- Set AI initial state to 200
+    ai->st.state = ST_CHASE_INIT;
     break;
   default:
     fprintf(stderr, "AI mode %d is not implemented, setting mode to SOCCER\n",
             mode);
-    ai->st.state = 0;
+    ai->st.state = ST_SOCCER_INIT;
   }
 
   BT_all_stop(0);      // Stop bot,
@@ -786,21 +774,6 @@ int setupAI(int mode, int own_col, struct RoboAI *ai) {
   ai->st.ballID = 0;
   ai->DPhead = NULL;
   fprintf(stderr, "Initialized!\n");
-
-  // Initialize field corner coordinates from Mcorners at runtime.
-  // Mcorners is provided by the imageCapture module; doing this here avoids
-  // using Mcorners in a static initializer (which must be a compile-time
-  // constant). If Mcorners hasn't been populated yet this will simply copy
-  // current values. (This is safe and ensures a single definition of the corner
-  // variables.)
-  tl_x = Mcorners[0][0];
-  tl_y = Mcorners[0][1];
-  tr_x = Mcorners[1][0];
-  tr_y = Mcorners[1][1];
-  bl_x = Mcorners[2][0];
-  bl_y = Mcorners[2][1];
-  br_x = Mcorners[3][0];
-  br_y = Mcorners[3][1];
 
   return (1);
 }
@@ -905,9 +878,8 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state) {
    *   parameters across frames (blob parameters change
    *   frame to frame, memoryless).
    ************************************************************/
-  if (ai->st.state == 0 || ai->st.state == 100 ||
-      ai->st.state ==
-          200) // Initial set up - find own, ball, and opponent blobs
+  if (ai->st.state == ST_SOCCER_INIT || ai->st.state == ST_PENALTY_INIT ||
+      ai->st.state == ST_CHASE_INIT) // Initial set up - find own, ball, and opponent blobs
   {
     // Carry out self id process.
     fprintf(stderr, "Initial state, self-id in progress...\n");
@@ -984,20 +956,17 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state) {
     on what the bot is supposed to be doing.
     *****************************************************************************/
     fprintf(stderr, "Just trackin with state: %d!\n",
-            ai->st.state); // bot, opponent, and ball.
+            ai->st.state);
     track_agents(ai, blobs);
 
     // get current state and call appropriate function
     int state = ai->st.state;
 
     if (state >= 0 && state < 100) {
-      // SOCCER mode
       soccer_mode(ai, &stored_smx, &stored_smy);
     } else if (state >= 100 && state < 200) {
-      // PENALTY mode
       penalty_mode(ai, &stored_smx, &stored_smy);
     } else if (state >= 200 && state < 300) {
-      // CHASE mode
       chase_mode(ai, blobs);
     } else {
       fprintf(stderr, "Unknown AI state: %d\n", state);
@@ -1019,28 +988,18 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state) {
   **********************************************************************************/
 }
 
-// Tuning knobs for penalty routine
+// Tuning parameters
 enum {
-  FACE_THRESH_DEG = 20,        // tweak
-  ALIGN_THRESH_DEG = 7,        // tweak
-  TARGET_BALL_DIST = 150,      // pixels; tweak to your scale
-  TARGET_TARGET_DIST = 80,     // pixels; tweak to your scale
-  CLOSE_BALL_SLACK = 50,       // +/-
-  BEHIND_BALL_GAP = 10,        // min px robot should be "behind" ball wrt goal
-  DELTA_TO_TARGET = 300,       // temporary
-  DEFEND_GOAL_THRESHOLD = 450, // temporary
-  TARGET_DEFENSE_DIST = 200,
+  FACE_THRESH_DEG = 20,        // degrees to consider "facing" target
+  TARGET_BALL_DIST = 200,      // pixels to consider "close" to ball
+  TARGET_TARGET_DIST = 80,     // pixels to consider "close" to target
+  DEFENSE_THRESHOLD = 300,     // pixels for opp to ball to consider defense
+  OPP_FACE_THRESH_DEG = 45,    // degrees for opp to ball/goal to consider defense
+  TARGET_DEFENSE_DIST = 200,   // pixels to consider "close" to defense position
+  DELTA_TO_TARGET = 300,
 };
 
-// Helpers (predicates)
-static inline double deg_wrap(double d) {
-  while (d > 180)
-    d -= 360;
-  while (d < -180)
-    d += 360;
-  return d;
-}
-
+// return true if facing target within threshold FACE_THRESH_DEG
 bool is_facing_target(struct RoboAI *ai, double smx, double smy,
                       double target_cx, double target_cy) {
   double e = compute_angle_error_to_target(ai, smx, smy, target_cx, target_cy);
@@ -1048,14 +1007,16 @@ bool is_facing_target(struct RoboAI *ai, double smx, double smy,
   return !isnan(e) && fabs(e) <= FACE_THRESH_DEG;
 }
 
+// return true if close enough to ball within TARGET_BALL_DIST
 bool is_close_to_ball(struct RoboAI *ai, double ball_cx, double ball_cy) {
   double de = 0, dd = 0;
   double d =
       compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd, ball_cx, ball_cy);
   fprintf(stderr, "Distance to ball: %.2f px (err %.2f, d %.2f)\n", d, de, dd);
-  return !isnan(d) && d <= (TARGET_BALL_DIST + CLOSE_BALL_SLACK);
+  return !isnan(d) && d <= (TARGET_BALL_DIST);
 }
 
+// return true if close enough to target within TARGET_TARGET_DIST
 bool is_close_to_target(struct RoboAI *ai, double target_cx, double target_cy) {
   if (!ai || !ai->st.self)
     return false;
@@ -1066,18 +1027,12 @@ bool is_close_to_target(struct RoboAI *ai, double target_cx, double target_cy) {
   return dist <= TARGET_TARGET_DIST;
 }
 
-#define DEFENSE_THRESHOLD 300
-#define OPP_FACE_THRESH_DEG 45
-// 暂时不做更精准的判断
-// 这里其实可以做更精准的判断
+// return true if need defense: opp is close to ball (within DEFENSE_THRESHOLD) and facing ball and goal (within OPP_FACE_THRESH_DEG)
 bool need_defense(struct RoboAI *ai) {
-  // opp 离球很近
   double opp_ball_dist =
       compute_opp_distance_to_target(ai, ai->st.ball->cx, ai->st.ball->cy);
-  // opp 朝球的方向对齐
   double opp_ball_angle =
       compute_opp_angle_diff_to_target(ai, ai->st.ball->cx, ai->st.ball->cy);
-  // opp 朝向我方球门的方向对齐
   double gx, gy;
   compute_goal_center1(1 - ai->st.side, &gx, &gy);
   double opp_goal_angle = compute_opp_angle_diff_to_target(ai, gx, gy);
@@ -1106,41 +1061,6 @@ bool need_edge_play(struct RoboAI *ai) {
   return (ai->st.ball->cy < EDGE_PLAY_THRESHOLD ||
           (sy - ai->st.ball->cy) < EDGE_PLAY_THRESHOLD);
 }
-
-// 可能能再用这个？？
-// #define BALL_IN_ATTACK_ZONE 1
-// #define BALL_NOT_IN_ATTACK_ZONE 0
-// #define BALL_VERY_CLOSE_TO_GOAL 2
-
-// static int check_ball_position(struct RoboAI *ai) {
-//   // TODOO: implement function to check ball position
-//   // return BALL_IN_ATTACK_ZONE or BALL_NOT_IN_ATTACK_ZONE or
-//   // BALL_VERY_CLOSE_TO_GOAL
-//   double bx, by;
-//   bx = ai->st.ball->cx;
-//   by = ai->st.ball->cy;
-
-//   // ??? Need to reconsider when to defend, right now just consider when ball
-//   is
-//   // very close to goal check whether ball is very close to our goal
-//   double gx, gy; // goal position
-//   compute_goal_center(ai, &gx, &gy);
-//   double dist_to_goal = sqrt((bx - gx) * (bx - gx) + (by - gy) * (by - gy));
-//   if (dist_to_goal < DEFEND_GOAL_THRESHOLD) {
-//     return BALL_VERY_CLOSE_TO_GOAL;
-//   }
-
-//   // check whether ball is in edge or attack zone
-//   // sx and sy are length and width of the field respectively
-//   // random values for now: 200 pixels from edge for y, 400 pixels from edge
-//   for
-//   // x
-//   if (by < 200 || by > (sy - 200) || bx < 400 || bx > (sx - 400)) {
-//     return BALL_NOT_IN_ATTACK_ZONE; // ball is in edge
-//   } else {
-//     return BALL_IN_ATTACK_ZONE; // ball is in attack zone
-//   }
-// }
 
 #define ESCAPE_BEHAVIOR 1
 #define NORMAL_ATTACK_BEHAVIOR 2
@@ -2234,7 +2154,7 @@ void soccer_mode(struct RoboAI *ai, double *smx, double *smy) {
     return;
   } else {
     fprintf(stderr, "In SOCCER test mode, current state: %d\n", state);
-    ai->st.state = 20; // set to normal play mode
+    ai->st.state = ST_SOCCER_ROTATE_TO_TARGET; // set to normal play mode
     soccer_normal_play_mode(ai, smx, smy);
   }
 
