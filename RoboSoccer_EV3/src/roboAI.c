@@ -2745,8 +2745,9 @@ void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy) {
     double ball_x = ai->st.ball->cx;
     double ball_y = ai->st.ball->cy;
     compute_goal_center(ai, &goal_x, &goal_y);
+    int g_angle = 0, g_rate = 0;
+    BT_read_gyro(GYRO_PORT, 1, &g_angle, &g_rate);
     if (edge_id == 2) {
-
       bool goal_is_left = (goal_x == 0);
       bool ball_on_top = (ball_y < sy * 0.5);
 
@@ -2798,6 +2799,8 @@ void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy) {
     }
     BT_motor_port_stop(LEFT_MOTOR, 0);
     BT_motor_port_stop(RIGHT_MOTOR, 0);
+    BT_read_gyro(GYRO_PORT, 0, &g_angle, &g_rate);
+    correct_motion_vector(smx, smy, g_angle);
     // after kick, move to done state
     ai->st.state = ST_SOCCER_EDGE_DONE;
     edge_flag = -1; // reset edge flag after kick
