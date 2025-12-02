@@ -1063,7 +1063,7 @@ bool need_edge_play(struct RoboAI *ai) {
   // close to top edge, x is close to 0
   // close to bottom edge, x is close to sy
   double gx, gy;
-  compute_goal_center1(ai->st.side, &gx, &gy);
+  compute_goal_center1(1-ai->st.side, &gx, &gy);
   bool close_to_goal = (sqrt((ai->st.ball->cx - gx) * (ai->st.ball->cx - gx) +
                                 (ai->st.ball->cy - gy) * (ai->st.ball->cy - gy)) <
                          EDGE_DELTA_GOAL);
