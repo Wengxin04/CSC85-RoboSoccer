@@ -4,41 +4,39 @@ config:
 ---
 stateDiagram
   direction TB
-  [*] --> Init
-  Init --> RotatetoX: find own, ball, and opponent blobs
-  RotatetoX --> RotatetoX: not aligned
-  RotatetoX --> DrivtoX: aligned
-  RotatetoX --> LostTrack: lost track
+    [*] --> Init
+    
+    Init --> RotateToBall:find own, ball, and opponent blobs
 
-  DrivetoX --> RotateToBall : at X
-  DrivetoX --> RotatetoX: unaliged
-  DrivetoX --> DrivtoX: not at X
-  DrivetoX --> LostTrack: LostTrack
+    RotateToTarget --> RotateToBall: is close to target
+    RotateToTarget --> MovetoTarget: is facing target but not close
+    RotateToTarget --> RotateToTarget: not facing target yet
 
-  RotateToBall --> GoStraight:facing ball
-  RotateToBall --> RotateToBall:still turning
-  RotateToBall --> LostTrack:lost track
 
-  GoStraight --> Kick:near ball
-  GoStraight --> GoStraight:still moving and far
-  GoStraight --> LostTrack:lost track
+    MovetoTarget --> RotateToBall: is close to target
+    MovetoTarget --> RotateToTarget: not facing target anymore
+    MovetoTarget --> MovetoTarget: not yet at target
+    MovetoTarget --> RotateToTarget: lost ball or self
 
-  RotateAround --> Kick:facing goal
-  RotateAround --> RotateAround:not aligned yet
-  RotateAround --> LostTrack:lost track
 
-  LostTrack --> LostTrack: not found 
-  LostTrack --> RotatetoX: found
-  Kick --> Done:finished kick
-  Done --> [*]
+    RotateToBall --> MovetoBall:facing ball
+    RotateToBall --> RotateToBall:still turning
+    RotateToBall --> RotateToTarget: lost ball or self
 
-  Init:Initial setup (100)
-  RotateToBall:Rotate towards ball (101)
-  GoStraight:Go straight towards ball (102)
-  RotateAround:Rotate around ball to face goal (103)
-  LostTrack: Lost Track - move slightly (105)
-  Kick:Kick (104)
-  Done:Done (199)
+    MovetoBall --> RotateToBall: not facing ball anymore
+    MovetoBall --> Kick: close to the ball
+    MovetoBall --> MovetoBall: not close to the ball yet
+    MovetoBall --> RotateToTarget: lost ball or self
 
-  RotatetoX: Rotate to X (111)
-  DrivetoX: Drive to X (112)
+    Kick --> Done: finished kick
+
+    Done --> [*]
+
+
+    Init:Initial setup (100)
+    RotateToTarget:Rotate towards target (101)
+    MovetoTarget: Move towards target(102)
+    RotateToBall: Rotate to ball (103)
+    MovetoBall: Move to ball (104)
+    Kick:Kick (105)
+    Done:Done (199)
