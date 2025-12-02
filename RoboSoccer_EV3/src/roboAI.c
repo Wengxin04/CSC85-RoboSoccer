@@ -1056,12 +1056,22 @@ bool need_escape(struct RoboAI *ai, double *smx, double *smy) {
 }
 
 // ball very close to side edges
-#define EDGE_PLAY_THRESHOLD 150
+#define EDGE_PLAY_THRESHOLD_Y 150
+#define EDGE_PLAY_THRESHOLD_X 150
+#define EDGE_DELTA_GOAL 200
 bool need_edge_play(struct RoboAI *ai) {
   // close to top edge, x is close to 0
   // close to bottom edge, x is close to sy
-  return (ai->st.ball->cy < EDGE_PLAY_THRESHOLD ||
-          (sy - ai->st.ball->cy) < EDGE_PLAY_THRESHOLD);
+  double gx, gy;
+  compute_goal_center1(ai->st.side, &gx, &gy);
+  bool close_to_goal = (sqrt((ai->st.ball->cx - gx) * (ai->st.ball->cx - gx) +
+                                (ai->st.ball->cy - gy) * (ai->st.ball->cy - gy)) <
+                         EDGE_DELTA_GOAL);
+  bool close_to_edge = (ai->st.ball->cy < EDGE_PLAY_THRESHOLD_Y ||
+          (sy - ai->st.ball->cy) < EDGE_PLAY_THRESHOLD_Y) ||
+          (ai->st.ball->cx < EDGE_PLAY_THRESHOLD_X ||
+           (sx - ai->st.ball->cx) < EDGE_PLAY_THRESHOLD_X);
+  return close_to_edge && !close_to_goal; 
 }
 
 #define ESCAPE_BEHAVIOR 1
@@ -1083,15 +1093,15 @@ bool need_edge_play(struct RoboAI *ai) {
 // global variable -> maybe use static
 // 目前是纯粹用陀螺仪角度来判断转了多少度
 // 考虑要不要加入image capture？
+
 void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x,
                     double target_y) {
   // 如果没有在转 -> init gryo and init global variable rotating angle!!
   //  and compute target angle here!
-  const int ROTATE_SPEED = 30; // speed for rotation, to be tuned
   double angle_delta = 0.0;
   static double prev_ang_err = 0.0;
   static double prev_5_err_ang[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
-  static double prev_speed = 0.0;
+  static double prev_speed = 25.0;
   int g_rate = 0;
 
   if (rotate_flag == -1) {
@@ -1124,11 +1134,11 @@ void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x,
     angle_delta += 360.0;
 
   bool rotate_limit = fabs(rotating_angle) > 200.0;
-  bool left_done = (target_angle < 0) && (angle_delta >= -5.0);
-  bool right_done = (target_angle > 0) && (angle_delta <= 5.0);
+  bool left_done = (target_angle < 0) && (angle_delta >= -7.0);
+  bool right_done = (target_angle > 0) && (angle_delta <= 7.0);
 
   // finished rotation
-  if (left_done || right_done || rotate_limit) { // within 5 degrees
+  if (left_done || right_done || rotate_limit) { // within 7 degrees
     // stop
     fprintf(stderr,
             "Rotation to target blob completed. Target angle: %.2f, Rotated "
@@ -1163,7 +1173,7 @@ void rotate_to_blob(struct RoboAI *ai, double smx, double smy, double target_x,
   }
 
   // turn PID control for angle
-  const double Kp_ang = 0.5; // 要调参
+  const double Kp_ang = 0.8; // 要调参
   const double Kd_ang = 2.5; // 要调参
   const double Ki_ang = 0.1; // 要
 
@@ -1344,7 +1354,7 @@ void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x,
   int right = (forward_speed - turn); // wallahi 调整
 
   // slow rate to prevent sudden changes
-  static int prev_left, prev_right;
+  static int prev_left = 30, prev_right = 30;
   if (left < prev_left - 10)
     left = prev_left - 10;
   if (left > prev_left + 10)
@@ -1355,32 +1365,28 @@ void move_to_blob(struct RoboAI *ai, double smx, double smy, double target_x,
     right = prev_right + 10;
 
   // deadband - ensure minimum speed to overcome friction
-  if (left < -100)
-    left = -100;
-  if (left > 100)
-    left = 100;
-  if (right < -100)
-    right = -100;
-  if (right > 100)
-    right = 100;
-  if (left > 0 && left < 10)
-    left = 10;
-  if (right > 0 && right < 10)
-    right = 10;
-  if (left < 0 && left > -10)
-    left = -10;
-  if (right < 0 && right > -10)
-    right = -10;
+  if (left < -80)
+    left = -80;
+  if (left > 80)
+    left = 80;
+  if (right < -80)
+    right = -80;
+  if (right > 80)
+    right = 80;
+  if (left > 0 && left < 20)
+    left = 20;
+  if (right > 0 && right < 20)
+    right = 20;
+  if (left < 0 && left > -20)
+    left = -20;
+  if (right < 0 && right > -20)
+    right = -20;
 
   prev_left = left;
   prev_right = right;
 
-  // fprintf(
-  //     stderr,
-  //     "approach_to_target: dist %.2f (err %.2f, d %.2f), fwd %.2f, %.2f,
-  //     %.2f, " "turn %.2f, %.2f, %.2f, %.2f, left %d, right %d, ang_err
-  //     %.2f\n", dist, dist_err, d_dist, forward_speed, up_dist, ud_dist, turn,
-  //     up_ang, ud_ang, ui_ang, left, right, ang_err);
+  fprintf(stderr,"approach_to_target: dist %.2f (err %.2f, d %.2f), fwd %.2f, %.2f,%.2f,turn %.2f, %.2f, %.2f, %.2f, left %d, right %d, ang_err%.2f\n", dist, dist_err, d_dist, forward_speed, up_dist, ud_dist, turn,
+      up_ang, ud_ang, ui_ang, left, right, ang_err);
 
   BT_drive(LEFT_MOTOR, RIGHT_MOTOR, left, right);
   // usleep(1000); // 10ms
@@ -2098,9 +2104,28 @@ int compute_ball_nearest_edge(struct RoboAI *ai, double *edge_x,
 
 bool check_target_validation(struct RoboAI *ai, double target_cx,
                              double target_cy) {
-  if (target_cx < 0 || target_cx > sx || target_cy < 0 || target_cy > sy) {
+  if (target_cx < 50 || target_cx > sx-50 || target_cy < 50 || target_cy > sy-50) {
     return false;
   }
+
+  if (!ai || !ai->st.self) return false;
+  double self_x = ai->st.self->cx;
+  double self_y = ai->st.self->cy;
+  double own_gx, own_gy;
+  compute_goal_center1(1-ai->st.side, &own_gx, &own_gy);
+
+  if (ai->st.side == 0) {
+    // left side
+    if (target_cx < self_x - 50) {
+      return false;
+    }
+  } else {
+    // right side
+    if (target_cx > self_x + 50) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -2301,7 +2326,7 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
     break;
   }
   case ST_SOCCER_ROTATE_TO_BALL: {
-    if (check_anything_lost(ai)) {
+    if (check_ball_self_lost(ai)) {
       fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
       ai->st.state = ST_SOCCER_NORMAL_PLAY_DONE;
       break;
@@ -2586,7 +2611,7 @@ void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy) {
     return;
   }
 
-  if (check_self_ball_lost(ai)) {
+  if (check_ball_self_lost(ai)) {
     fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
     BT_motor_port_stop(LEFT_MOTOR, 0);
     BT_motor_port_stop(RIGHT_MOTOR, 0);
@@ -2780,8 +2805,7 @@ void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy) {
   }
 
   case ST_SOCCER_EDGE_DONE: {
-    if (ai == NULL || ai->st.ball == NULL || ai->st.self == NULL ||
-        ai->st.opp == NULL) {
+    if (ai == NULL || ai->st.ball == NULL || ai->st.self == NULL) {
       fprintf(stderr, "Ball lost after kick, rotating to search\n");
       BT_motor_port_stop(LEFT_MOTOR, 0);
       BT_motor_port_stop(RIGHT_MOTOR, 0);
