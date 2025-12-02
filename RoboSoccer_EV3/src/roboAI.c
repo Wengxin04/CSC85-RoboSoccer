@@ -80,7 +80,7 @@ void correct_direction(struct BlobHistory *h) {
 
   double cos_angle = dot / (mag0 * mag1);
   if (cos_angle < 0) { // angle > 90 deg
-    fprintf(stderr, "correcting dir? %f %f\n", h->dx[0], h->dy[0]);
+    // fprintf(stderr, "correcting dir? %f %f\n", h->dx[0], h->dy[0]);
     h->dx[0] *= -1;
     h->dy[0] *= -1;
   }
@@ -959,8 +959,8 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state) {
     deal with state transitions and with calling the appropriate function based
     on what the bot is supposed to be doing.
     *****************************************************************************/
-    fprintf(stderr, "Just trackin with state: %d!\n",
-            ai->st.state);
+    // fprintf(stderr, "Just trackin with state: %d!\n",
+    //         ai->st.state);
     track_agents(ai, blobs);
 
     // get current state and call appropriate function
@@ -1021,7 +1021,7 @@ enum {
 bool is_facing_target(struct RoboAI *ai, double smx, double smy,
                       double target_cx, double target_cy) {
   double e = compute_angle_error_to_target(ai, smx, smy, target_cx, target_cy);
-  fprintf(stderr, "Angle error to target: %.2f deg\n", e);
+  // fprintf(stderr, "Angle error to target: %.2f deg\n", e);
   return !isnan(e) && fabs(e) <= FACE_THRESH_DEG;
 }
 
@@ -1030,7 +1030,7 @@ bool is_close_to_ball(struct RoboAI *ai, double ball_cx, double ball_cy) {
   double de = 0, dd = 0;
   double d =
       compute_distance_error(ai, TARGET_BALL_DIST, &de, &dd, ball_cx, ball_cy);
-  fprintf(stderr, "Distance to ball: %.2f px (err %.2f, d %.2f)\n", d, de, dd);
+  // fprintf(stderr, "Distance to ball: %.2f px (err %.2f, d %.2f)\n", d, de, dd);
   return !isnan(d) && d <= (TARGET_BALL_DIST);
 }
 
@@ -1041,7 +1041,7 @@ bool is_close_to_target(struct RoboAI *ai, double target_cx, double target_cy) {
   double dx = target_cx - ai->st.self->cx;
   double dy = target_cy - ai->st.self->cy;
   double dist = hypot(dx, dy);
-  fprintf(stderr, "Distance to target: %.2f px\n", dist);
+  // fprintf(stderr, "Distance to target: %.2f px\n", dist);
   return dist <= TARGET_TARGET_DIST;
 }
 
@@ -1622,7 +1622,7 @@ bool check_ball_self_lost(struct RoboAI *ai) {
 
 // called when in PENALTY mode
 void penalty_mode(struct RoboAI *ai, double *stored_smx, double *stored_smy) {
-  fprintf(stderr, "In PENALTY mode, current state: %d\n", ai->st.state);
+  // fprintf(stderr, "In PENALTY mode, current state: %d\n", ai->st.state);
   int state = ai->st.state;
 
   // denoise check for all blobs
@@ -1771,7 +1771,7 @@ void penalty_mode(struct RoboAI *ai, double *stored_smx, double *stored_smy) {
 
 // called when in CHASE mode
 void chase_mode(struct RoboAI *ai, struct blob *blobs) {
-  fprintf(stderr, "In CHASE mode, current state: %d\n", ai->st.state);
+  // fprintf(stderr, "In CHASE mode, current state: %d\n", ai->st.state);
   int state = ai->st.state;
 
   switch (state) {
