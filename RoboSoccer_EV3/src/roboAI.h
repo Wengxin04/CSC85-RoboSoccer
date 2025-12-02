@@ -264,14 +264,8 @@ void compute_target_pos_general(struct RoboAI *ai, double gx, double gy,
 void compute_goal_center(struct RoboAI *ai, double *gcx, double *gcy);
 void compute_goal_center1(int side, double *gcx, double *gcy);
 
-
-// penalty helper
-void compute_target_position(struct RoboAI *ai, double *target_cx,
-                             double *target_cy);
-
-
 // soccer helper
-void compute_target_position_soccer(struct RoboAI *ai, double *target_cx,
+void compute_target_position(struct RoboAI *ai, double *target_cx,
                                     double *target_cy);
 double compute_opp_angle_diff_to_target(struct RoboAI *ai, double target_x,
                                         double target_y);
