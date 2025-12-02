@@ -2190,7 +2190,7 @@ void soccer_mode(struct RoboAI *ai, double *smx, double *smy) {
                               &b->dy, &b->mx, &b->my);
       if (valid < 0) {
         fprintf(stderr, "Lost track of a blob, back to 101\n");
-        ai->st.state = ST_PENALTY_ROTATE_TO_TARGET;
+        ai->st.state = ST_SOCCER_ROTATE_TO_TARGET;
       }
     }
 
@@ -2676,7 +2676,7 @@ void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy) {
       target_cy = ai->st.ball->cy;
     }
     if (is_close_to_target(ai, target_cx, target_cy)) {
-      ai->st.state = ST_SOCCER_EDGE_DONE;
+      ai->st.state = ST_SOCCER_EDGE_ROTATE_BALL;
       BT_motor_port_stop(LEFT_MOTOR, 0);
       BT_motor_port_stop(RIGHT_MOTOR, 0);
       break;
