@@ -2112,7 +2112,7 @@ int check_soccer_state_behavior(struct RoboAI *ai, double *smx, double *smy) {
 
   bool edge_attack = false;
 
-  if (check_ball_self_lost(ai)) {
+  if (check_ball_self_lost(ai) || rotate_flag > 0) {
     // case ball or self lost
     return BEHAVIOR_NOT_CHANGE; // lost track, do not change behavior
   }else if (!ai->st.opp){
@@ -2123,10 +2123,6 @@ int check_soccer_state_behavior(struct RoboAI *ai, double *smx, double *smy) {
     }else{
       return NORMAL_ATTACK_BEHAVIOR; // normal attack
     }
-  }
-
-  if (rotate_flag > 0) {
-    return BEHAVIOR_NOT_CHANGE; // still rotating, do not change behavior
   }
 
   bool escape = need_escape(ai, smx, smy);
