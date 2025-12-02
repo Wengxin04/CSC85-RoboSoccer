@@ -1652,13 +1652,6 @@ void penalty_mode(struct RoboAI *ai, double *stored_smx, double *stored_smy) {
     return;
   }
 
-    if (check_ball_self_lost(ai)) {
-    BT_motor_port_stop(LEFT_MOTOR, 0);
-    BT_motor_port_stop(RIGHT_MOTOR, 0);
-    ai->st.state = ST_PENALTY_DONE;
-    return;
-  }
-
   switch (state) {
   case ST_PENALTY_ROTATE_TO_TARGET: {
 
