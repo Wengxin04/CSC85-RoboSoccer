@@ -2139,16 +2139,20 @@ void soccer_mode(struct RoboAI *ai, double *smx, double *smy) {
     }
   }
 
-  if (state >= 10 && state < 20) {
+  // normal play states: 10-19
+  // edge play states: 20-29
+  // defense states: 30-39
+  // escape states: 40-49
+  if (state >= 40 && state < 50) {
     fprintf(stderr, "Escaping!\n");
     soccer_escape_mode(ai, smx, smy);
-  } else if (state >= 40 && state < 50) {
+  } else if (state >= 30 && state < 40) {
     fprintf(stderr, "Defending goal\n");
     soccer_defense_mode(ai, smx, smy);
-  } else if (state >= 20 && state < 30) {
+  } else if (state >= 10 && state < 20) {
     fprintf(stderr, "Normal attack mode\n");
     soccer_normal_play_mode(ai, smx, smy);
-  } else if (state >= 30 && state < 40) {
+  } else if (state >= 20 && state < 30) {
     fprintf(stderr, "Edge attack mode\n");
     soccer_edge_play_mode(ai, smx, smy);
     return;
