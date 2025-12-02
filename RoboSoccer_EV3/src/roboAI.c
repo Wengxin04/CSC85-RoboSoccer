@@ -1655,10 +1655,11 @@ void penalty_mode(struct RoboAI *ai, double *stored_smx, double *stored_smy) {
   struct BlobHistory *aiBlobHist[] = {&trackHist.ball, &trackHist.self,
                                       &trackHist.opp};
 
-  if (check_anything_lost(ai) == 0) {
     for (int i = 0; i < 3; i++) {
       struct blob *b = aiBlob[i];
       struct BlobHistory *hist = aiBlobHist[i];
+      if (!b || !hist)
+        continue;
 
       update_blob_history(hist, b);
       int valid = denoise_exp(hist, &b->cx, &b->cy, &b->vx, &b->vy, &b->dx,
@@ -1668,7 +1669,6 @@ void penalty_mode(struct RoboAI *ai, double *stored_smx, double *stored_smy) {
         ai->st.state = ST_PENALTY_ROTATE_TO_TARGET;
       }
     }
-  }
 
   // TODOO: add more transitions (lost track, reset, still moving etc)
   // now only consider the main flow
@@ -2153,10 +2153,12 @@ void soccer_mode(struct RoboAI *ai, double *smx, double *smy) {
   struct BlobHistory *aiBlobHist[] = {&trackHist.ball, &trackHist.self,
                                       &trackHist.opp};
 
-  if (check_anything_lost(ai) == 0) {
+
     for (int i = 0; i < 3; i++) {
       struct blob *b = aiBlob[i];
       struct BlobHistory *hist = aiBlobHist[i];
+      if (!b || !hist)
+        continue;
 
       update_blob_history(hist, b);
       int valid = denoise_exp(hist, &b->cx, &b->cy, &b->vx, &b->vy, &b->dx,
@@ -2166,7 +2168,6 @@ void soccer_mode(struct RoboAI *ai, double *smx, double *smy) {
         ai->st.state = ST_PENALTY_ROTATE_TO_TARGET;
       }
     }
-  }
 
   // normal play states: 10-19
   // edge play states: 20-29
