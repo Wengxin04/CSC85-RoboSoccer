@@ -278,7 +278,10 @@ double compute_opp_angle_diff_to_target(struct RoboAI *ai, double target_x,
                                         double target_y);
 double compute_opp_distance_to_target(struct RoboAI *ai, double target_cx,
                                       double target_cy);
-// soccer defense helper
+bool check_target_validation(struct RoboAI *ai, double target_cx,
+                             double target_cy);
+
+ // soccer defense helper
 void compute_defense_target(struct RoboAI *ai, double *target_cx,
                             double *target_cy);
 // soccer escape helper
@@ -292,6 +295,7 @@ int compute_ball_nearest_edge(struct RoboAI *ai, double *edge_x,
 
 // general utilities
 bool check_anything_lost(struct RoboAI *ai);
+bool check_ball_self_lost(struct RoboAI *ai);
 // correction helper
 double correct_motion_vector(double *smx, double *smy, double rotate_angle_deg);
 

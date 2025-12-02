@@ -69,6 +69,8 @@ double target_angle = 0.0; // global variable to store the target angle from
 int move_flag =
     -2; // global variable to indicate move status, start at -2 (not moving)
 
+int edge_flag = -1; // global variable to indicate edge attack status
+
 ////////////////////////////////////
 // Denosing data
 ////////////////////////////////////
@@ -1147,6 +1149,7 @@ bool need_edge_play(struct RoboAI *ai) {
 #define EDGE_ATTACK_BEHAVIOR 3
 #define DEFEND_BEHAVIOR 4
 #define BEHAVIOR_NOT_CHANGE 0
+#define BALL_LOST_BEHAVIOR 5
 
 /**********************************
  *
@@ -1711,6 +1714,11 @@ bool check_anything_lost(struct RoboAI *ai) {
   return false;
 }
 
+bool check_ball_self_lost(struct RoboAI *ai) {
+  if (!ai || !ai->st.self || !ai->st.ball)
+    return true;
+  return false;
+}
 /***********************************
  *
  * AI mode functions
@@ -2168,28 +2176,53 @@ int compute_ball_nearest_edge(struct RoboAI *ai, double *edge_x,
   return edge_id;
 }
 
+bool check_target_validation(struct RoboAI *ai, double target_cx,
+                             double target_cy) {
+  if (target_cx < 0 || target_cx > sx || target_cy < 0 || target_cy > sy) {
+    return false;
+  }
+  return true;
+}
+
 // checker for soccer behavior
 int check_soccer_state_behavior(struct RoboAI *ai, double *smx, double *smy) {
   // determine whether the ai should escape, defend, or attack (normal attack or
   // edge attack) return 1 for escape, 2 for normal attack, 3 for edge attack, 4
   // for defend
 
-  if (rotate_flag > 0 || check_anything_lost(ai)) {
+  bool edge_attack = false;
+
+  if (check_ball_self_lost(ai)) {
+    // case ball or self lost
+    return BEHAVIOR_NOT_CHANGE; // lost track, do not change behavior
+  }else if (!ai->st.opp){
+    // case only opp lost
+    edge_attack = need_edge_play(ai);
+    if (edge_attack || edge_flag > 0) {
+      return EDGE_ATTACK_BEHAVIOR; // edge attack
+    }else{
+      return NORMAL_ATTACK_BEHAVIOR; // normal attack
+    }
+  }
+
+  if (rotate_flag > 0) {
     return BEHAVIOR_NOT_CHANGE; // still rotating, do not change behavior
   }
 
   bool escape = need_escape(ai, smx, smy);
   if (escape) {
+    edge_flag = -1; // reset edge flag when escaping
     return ESCAPE_BEHAVIOR; // escape
   }
 
   bool defend = need_defense(ai);
   if (defend) {
+    edge_flag = -1; // reset edge flag when defending
     return DEFEND_BEHAVIOR; // defend
   }
 
-  bool edge_attack = need_edge_play(ai);
-  if (edge_attack) {
+  edge_attack = need_edge_play(ai);
+  if (edge_attack || edge_flag > 0) {
     return EDGE_ATTACK_BEHAVIOR; // edge attack
   }
 
@@ -2272,8 +2305,7 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
     return;
   }
 
-  if (check_anything_lost(ai)) {
-    fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
+  if (check_ball_self_lost(ai)) {
     BT_motor_port_stop(LEFT_MOTOR, 0);
     BT_motor_port_stop(RIGHT_MOTOR, 0);
     ai->st.state = ST_SOCCER_NORMAL_PLAY_DONE;
@@ -2288,6 +2320,10 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
   case ST_SOCCER_ROTATE_TO_TARGET: {
     double target_cx, target_cy;
     compute_target_position_soccer(ai, &target_cx, &target_cy);
+    if (!check_target_validation(ai, target_cx, target_cy)) {
+      edge_flag = 1; // force edge play
+      break;
+    }
 
     if (is_close_to_target(ai, target_cx, target_cy)) {
       fprintf(stderr, "Already reached target in SOCCER mode, stopping\n");
@@ -2321,6 +2357,11 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
   case ST_SOCCER_MOVE_TO_TARGET: {
     double target_cx, target_cy;
     compute_target_position_soccer(ai, &target_cx, &target_cy);
+    if (!check_target_validation(ai, target_cx, target_cy)) {
+      edge_flag = 1; // force edge play
+      break;
+    }
+
     if (is_close_to_target(ai, target_cx, target_cy)) {
       fprintf(stderr, "Already reached target in SOCCER mode, stopping\n");
       ai->st.state = ST_SOCCER_ROTATE_TO_BALL;
@@ -2397,8 +2438,7 @@ void soccer_normal_play_mode(struct RoboAI *ai, double *stored_smx,
     break;
   }
   case ST_SOCCER_NORMAL_PLAY_DONE: {
-    if (ai == NULL || ai->st.ball == NULL || ai->st.self == NULL ||
-        ai->st.opp == NULL) {
+    if (check_ball_self_lost(ai)) {
       fprintf(stderr, "Ball lost after kick, rotating to search\n");
       BT_motor_port_stop(LEFT_MOTOR, 0);
       BT_motor_port_stop(RIGHT_MOTOR, 0);
@@ -2625,7 +2665,7 @@ void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy) {
     return;
   }
 
-  if (check_anything_lost(ai)) {
+  if (check_self_ball_lost(ai)) {
     fprintf(stderr, "Something lost, rotating to search in SOCCER mode\n");
     BT_motor_port_stop(LEFT_MOTOR, 0);
     BT_motor_port_stop(RIGHT_MOTOR, 0);
@@ -2814,6 +2854,7 @@ void soccer_edge_play_mode(struct RoboAI *ai, double *smx, double *smy) {
     BT_motor_port_stop(RIGHT_MOTOR, 0);
     // after kick, move to done state
     ai->st.state = ST_SOCCER_EDGE_DONE;
+    edge_flag = -1; // reset edge flag after kick
     break;
   }
 
